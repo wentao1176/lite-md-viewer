@@ -24,15 +24,13 @@ async function getHighlighter(): Promise<Highlighter> {
       themes: ['min-dark', 'min-light'],
       langs: [
         'javascript', 'typescript', 'python', 'rust', 'go', 'java',
-        'c', 'cpp', 'csharp', 'ruby', 'php', 'swift', 'kotlin',
-        'verilog', 'systemverilog', 'vhdl',
-        'bash', 'shell', 'powershell', 'cmd',
+        'c', 'cpp', 'csharp',
+        'verilog', 'vhdl',
+        'bash', 'powershell', 'cmd',
         'sql', 'json', 'yaml', 'xml', 'toml',
-        'html', 'css', 'scss', 'less',
-        'markdown', 'latex', 'dockerfile', 'makefile',
-        'asm', 'nasm', 'wasm',
-        'vue', 'svelte', 'astro',
-        'graphql', 'protobuf'
+        'html', 'css',
+        'markdown', 'latex',
+        'asm', 'dockerfile', 'makefile'
       ]
     }).then(h => {
       highlighter = h

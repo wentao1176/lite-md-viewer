@@ -5,14 +5,39 @@ copyright: Copyright © 2025 xwt
 directories:
   output: release
 
+compression: maximum
+
 publish:
   provider: github
   owner: wentao1176
   repo: lite-md-viewer
 
+# 只打包渲染产物 + 主进程实际需要的运行时依赖（electron-updater 链），
+# 排除被 Vite 打进 dist 的冗余 node_modules（shiki/mermaid/katex 等）
 files:
   - dist/**/*
   - dist-electron/**/*
+  - package.json
+  - '!node_modules/**/*'
+  - node_modules/electron-updater/**/*
+  - node_modules/builder-util-runtime/**/*
+  - node_modules/debug/**/*
+  - node_modules/ms/**/*
+  - node_modules/fs-extra/**/*
+  - node_modules/graceful-fs/**/*
+  - node_modules/jsonfile/**/*
+  - node_modules/universalify/**/*
+  - node_modules/js-yaml/**/*
+  - node_modules/argparse/**/*
+  - node_modules/sprintf-js/**/*
+  - node_modules/semver/**/*
+  - node_modules/lazy-val/**/*
+  - node_modules/lodash.isequal/**/*
+  - node_modules/lodash.escaperegexp/**/*
+  - node_modules/tiny-typed-emitter/**/*
+
+# 裁剪 Electron 语言包
+afterPack: build/afterPack.js
 
 win:
   icon: build/icons/icon.ico
