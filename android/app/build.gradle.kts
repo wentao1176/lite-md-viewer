@@ -6,12 +6,12 @@ plugins {
 
 android {
     namespace = "com.xwt.litemdviewer"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.xwt.litemdviewer"
         minSdk = 26
-        targetSdk = 34
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0.0"
     }
@@ -46,6 +46,11 @@ android {
     }
 }
 
+// 解决 Prism4j 传递的 annotations-java5 与 annotations 冲突
+configurations.all {
+    exclude(group = "org.jetbrains", module = "annotations-java5")
+}
+
 dependencies {
     // 核心
     implementation("androidx.core:core-ktx:1.13.1")
@@ -62,8 +67,14 @@ dependencies {
 
     // Markdown 渲染（Markwon）
     implementation("io.noties.markwon:core:4.6.2")
-    implementation("io.noties.markwon:ext-gfm:4.6.2")          // 表格/删除线/任务列表
-    implementation("io.noties.markwon:image:4.6.2")            // 图片
-    implementation("io.noties.markwon:syntax-highlight:4.6.2") // 代码高亮（基于 Prism4j，传递依赖自动引入）
-    implementation("io.noties.markwon:katex:4.6.2")            // LaTeX 公式
+    implementation("io.noties.markwon:ext-tables:4.6.2")          // 表格
+    implementation("io.noties.markwon:ext-strikethrough:4.6.2")   // 删除线
+    implementation("io.noties.markwon:ext-tasklist:4.6.2")        // 任务列表
+    implementation("io.noties.markwon:image:4.6.2")               // 图片
+    implementation("io.noties.markwon:ext-latex:4.6.2")           // LaTeX 公式（JLatexMath）
+
+    // Markdown → HTML（导出 PDF 用；与 JLatexMath 的 atlassian.commonmark 保持同一版本族）
+    implementation("com.atlassian.commonmark:commonmark:0.13.0")
+    implementation("com.atlassian.commonmark:commonmark-ext-gfm-tables:0.13.0")
+    implementation("com.atlassian.commonmark:commonmark-ext-gfm-strikethrough:0.13.0")
 }

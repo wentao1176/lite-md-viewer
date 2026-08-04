@@ -2,15 +2,20 @@ package com.xwt.litemdviewer
 
 import android.content.Context
 import io.noties.markwon.Markwon
-import io.noties.markwon.ext.gfm.GfmPlugin
+import io.noties.markwon.ext.latex.JLatexMathPlugin
+import io.noties.markwon.ext.strikethrough.StrikethroughPlugin
+import io.noties.markwon.ext.tables.TablePlugin
+import io.noties.markwon.ext.tasklist.TaskListPlugin
 import io.noties.markwon.image.ImagesPlugin
-import io.noties.markwon.katex.KaTeXPlugin
-import io.noties.markwon.syntax.highlight.Prism4jThemeDarkula
-import io.noties.markwon.syntax.highlight.Prism4jThemeGithub
-import io.noties.markwon.syntax.highlight.SyntaxHighlightPlugin
+import org.commonmark.ext.gfm.strikethrough.StrikethroughExtension
+import org.commonmark.ext.gfm.tables.TablesExtension
+import org.commonmark.parser.Parser
+import org.commonmark.renderer.html.HtmlRenderer
 
 /**
- * Markdown 渲染器：基于 Markwon（GFM + 代码高亮 + LaTeX 公式 + 图片）
+ * Markdown 渲染器：
+ * - 预览：Markwon（表格/删除线/任务列表/图片/代码高亮/LaTeX）
+ * - 导出：commonmark-java 转为 HTML（纯 JVM，不依赖视图）
  */
 object MarkdownRenderer {
 
@@ -24,12 +29,11 @@ object MarkdownRenderer {
         if (cached != null && cachedDark == dark) return cached
 
         val markwon = Markwon.builder(context)
-            .usePlugin(GfmPlugin.create())                                    // 表格/删除线/任务列表
-            .usePlugin(ImagesPlugin.create(context))                          // 图片
-            .usePlugin(SyntaxHighlightPlugin.create(
-                if (dark) Prism4jThemeDarkula() else Prism4jThemeGithub()
-            ))                                                               // 代码高亮
-            .usePlugin(KaTeXPlugin.create())                                  // LaTeX 公式
+            .usePlugin(StrikethroughPlugin.create())                          // 删除线
+            .usePlugin(TablePlugin.create(context))                               // 表格
+            .usePlugin(TaskListPlugin.create(context))                        // 任务列表
+            .usePlugin(ImagesPlugin.create())                                 // 图片
+            .usePlugin(JLatexMathPlugin.create(1.0f))                         // LaTeX 公式
             .build()
 
         markwonCache = markwon
@@ -38,9 +42,17 @@ object MarkdownRenderer {
     }
 
     /** 渲染为完整 HTML 文档（用于导出 PDF），带主题内联样式 */
-    fun renderToHtml(context: Context, markdown: String, dark: Boolean): String {
+    fun renderToHtml(markdown: String, dark: Boolean): String {
+        val extensions = listOf(
+            TablesExtension.create(),
+            StrikethroughExtension.create()
+        )
+        val parser = Parser.builder().extensions(extensions).build()
+        val renderer = HtmlRenderer.builder().extensions(extensions).build()
+        val document = parser.parse(markdown)
+        val body = renderer.render(document)
+
         val css = if (dark) DARK_CSS else LIGHT_CSS
-        val body = get(context, dark).toHtml(markdown)
         return buildString {
             append("<!DOCTYPE html><html><head><meta charset=\"UTF-8\">")
             append("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">")
@@ -70,6 +82,7 @@ object MarkdownRenderer {
         ul,ol { padding-left:1.5em; }
         img { max-width:100%; border-radius:12px; }
         blockquote > * { margin:.3em 0; }
+        input[type=checkbox] { width:16px; height:16px; }
     """
 
     private const val DARK_CSS = """
@@ -92,5 +105,6 @@ object MarkdownRenderer {
         ul,ol { padding-left:1.5em; }
         img { max-width:100%; border-radius:12px; }
         blockquote > * { margin:.3em 0; }
+        input[type=checkbox] { width:16px; height:16px; }
     """
 }

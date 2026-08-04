@@ -114,7 +114,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun exportPdf() {
-        val html = MarkdownRenderer.renderToHtml(this, markdownContent, isDarkMode())
+        val html = MarkdownRenderer.renderToHtml(markdownContent, isDarkMode())
         PdfExporter.export(this, currentFileName, html)
         toast("正在生成 PDF...")
     }
@@ -158,13 +158,11 @@ fn main() {
 | 导出 PDF | 支持 |
 | 代码高亮 | 支持 |
 
-### 数学公式
+### 数学公式（导出时由 commonmark 处理）
 
-行内公式：$E = mc^2$
-
-$$
-\\int_{-\\infty}^{\\infty} e^{-x^2} dx = \\sqrt{\\pi}
-$$
+```latex
+\int_{-\infty}^{\infty} e^{-x^2} dx = \sqrt{\pi}
+```
 
 > 提示：点击右上角按钮可打开手机上的 .md 文件，或导出 PDF。
 """
