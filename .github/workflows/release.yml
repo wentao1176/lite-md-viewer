@@ -29,6 +29,10 @@ jobs:
       - name: Build Vue
         run: npx vite build
 
+      - name: Install FUSE (for AppImage packaging)
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y libfuse2
+
       - name: Build & Publish (Windows)
         if: matrix.os == 'windows-latest'
         run: npx electron-builder --win --publish always 2>&1
