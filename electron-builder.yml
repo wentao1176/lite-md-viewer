@@ -31,6 +31,7 @@ nsis:
 
 linux:
   category: Utility
+  maintainer: xwt <wentao1176@users.noreply.github.com>
   target:
     - target: deb
       arch:

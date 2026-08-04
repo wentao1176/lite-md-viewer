@@ -21,7 +21,10 @@
     "preview",
     "lightweight"
   ],
-  "author": "xwt",
+  "author": {
+    "name": "xwt",
+    "email": "wentao1176@users.noreply.github.com"
+  },
   "license": "MIT",
   "dependencies": {
     "@codemirror/lang-markdown": "^6.3.0",
