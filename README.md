@@ -32,6 +32,20 @@
 
 > 开发者：打 `git tag v1.0.1 && git push origin v1.0.1` 即自动构建并发布到 Releases
 
+### 发布新版本（三步）
+
+1. **本地准备**：改代码 → 升 `package.json` 的 version → 本地打包确认无误（`npm run electron:build:win`）
+2. **推送触发 CI**：
+   ```bash
+   git add -A && git commit -m "feat: xxx"
+   git push origin main
+   git tag v1.0.5 && git push origin v1.0.5
+   ```
+3. **网页发布**：CI 会自动构建安装包并上传到 draft release（等约 5-10 分钟）→ 打开
+   `https://github.com/wentao1176/lite-md-viewer/releases` → 点最新 draft 的 **Publish release**
+
+> ⚠️ 注意：CI 构建的 release 默认是 **draft**，必须手动点 Publish 用户才能收到更新。资产会自动包含 Setup exe + latest.yml + blockmap（Windows）和 deb + AppImage（Linux）。
+
 ## 安装
 
 ### Windows
