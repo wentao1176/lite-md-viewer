@@ -15,6 +15,7 @@ files:
   - dist-electron/**/*
 
 win:
+  icon: build/icons/icon.png
   signAndEditExecutable: false
   target:
     - target: nsis
@@ -31,6 +32,7 @@ nsis:
 
 linux:
   category: Utility
+  icon: build/icons/icon.png
   maintainer: xwt <wentao1176@users.noreply.github.com>
   target:
     - target: deb
