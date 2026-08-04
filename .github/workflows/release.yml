@@ -8,6 +8,7 @@ on:
 jobs:
   build:
     strategy:
+      fail-fast: false
       matrix:
         os: [windows-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
@@ -27,12 +28,12 @@ jobs:
 
       - name: Build & Publish (Windows)
         if: matrix.os == 'windows-latest'
-        run: npx electron-builder --win --publish always
+        run: npx electron-builder --win --publish always 2>&1
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build & Publish (Linux)
         if: matrix.os == 'ubuntu-latest'
-        run: npx electron-builder --linux --publish always
+        run: npx electron-builder --linux --publish always 2>&1
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
