@@ -1,0 +1,53 @@
+{
+  "name": "lite-md-viewer",
+  "version": "1.0.0",
+  "description": "轻量、高级、开箱即用的跨平台 Markdown 预览器",
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "electron:dev": "vite",
+    "electron:build": "vue-tsc --noEmit && vite build && electron-builder",
+    "electron:build:win": "vue-tsc --noEmit && vite build && electron-builder --win",
+    "electron:build:linux": "vue-tsc --noEmit && vite build && electron-builder --linux",
+    "lint": "eslint . --ext .ts,.vue --fix",
+    "typecheck": "vue-tsc --noEmit"
+  },
+  "keywords": [
+    "markdown",
+    "viewer",
+    "electron",
+    "preview",
+    "lightweight"
+  ],
+  "author": "xwt",
+  "license": "MIT",
+  "dependencies": {
+    "@codemirror/lang-markdown": "^6.3.0",
+    "@codemirror/state": "^6.5.0",
+    "@codemirror/theme-one-dark": "^6.1.2",
+    "@codemirror/view": "^6.36.0",
+    "codemirror": "^6.0.1",
+    "dompurify": "^3.2.0",
+    "electron-updater": "^6.8.9",
+    "katex": "^0.16.0",
+    "markdown-it": "^14.1.0",
+    "mermaid": "^11.4.0",
+    "shiki": "^1.26.0"
+  },
+  "devDependencies": {
+    "@types/dompurify": "^3.0.5",
+    "@types/katex": "^0.16.7",
+    "@types/markdown-it": "^14.1.0",
+    "@vitejs/plugin-vue": "^5.2.0",
+    "electron": "^33.3.0",
+    "electron-builder": "^24.13.3",
+    "typescript": "^5.7.0",
+    "vite": "^6.0.0",
+    "vite-plugin-electron": "^0.28.8",
+    "vite-plugin-electron-renderer": "^0.14.6",
+    "vue": "^3.5.0",
+    "vue-tsc": "^2.2.0"
+  }
+}

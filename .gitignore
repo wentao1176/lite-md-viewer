@@ -1,0 +1,10 @@
+node_modules/
+dist/
+dist-electron/
+release/
+.vite/
+*.log
+.DS_Store
+Thumbs.db
+
+.reasonix/
