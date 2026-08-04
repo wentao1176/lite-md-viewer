@@ -394,6 +394,22 @@ function setupAutoUpdater() {
   autoUpdater.autoDownload = true
   autoUpdater.autoInstallOnAppQuit = true
 
+  // 检查失败的退避重试计划（分钟）：启动失败后 10/30/60 分钟各重试一次
+  let retryAttempt = 0
+  const retryDelays = [10, 30, 60]
+
+  const scheduleRetry = () => {
+    if (retryAttempt >= retryDelays.length) return
+    const delayMin = retryDelays[retryAttempt++]
+    console.log(`[updater] 检查失败，${delayMin} 分钟后重试`)
+    setTimeout(() => {
+      autoUpdater.checkForUpdates().catch((err) => {
+        console.error('[updater] retry failed:', err.message)
+        scheduleRetry()
+      })
+    }, delayMin * 60 * 1000)
+  }
+
   autoUpdater.on('checking-for-update', () => {
     console.log('[updater] checking for updates...')
   })
@@ -408,6 +424,7 @@ function setupAutoUpdater() {
 
   autoUpdater.on('error', (err) => {
     console.error('[updater] error:', err.message)
+    scheduleRetry()
   })
 
   autoUpdater.on('update-downloaded', async (info) => {
@@ -429,12 +446,21 @@ function setupAutoUpdater() {
     }
   })
 
-  // 延迟几秒检查，避免拖慢冷启动
+  // 延迟几秒检查，避免拖慢冷启动；失败时进入退避重试
   setTimeout(() => {
-    autoUpdater.checkForUpdates().catch(() => {
-      // 检查失败静默处理（如无网络、仓库不存在等）
+    autoUpdater.checkForUpdates().catch((err) => {
+      console.error('[updater] initial check failed:', err.message)
+      scheduleRetry()
     })
   }, 5000)
+
+  // 后台定时复查：每 4 小时检查一次，保证长期开机的用户也能收到更新
+  setInterval(() => {
+    autoUpdater.checkForUpdates().catch((err) => {
+      console.error('[updater] scheduled check failed:', err.message)
+      scheduleRetry()
+    })
+  }, 4 * 60 * 60 * 1000)
 }
 
 // Windows: 通过文件关联打开 .md 文件
