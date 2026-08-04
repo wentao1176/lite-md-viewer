@@ -112,18 +112,45 @@ function buildMenu() {
       submenu: [
         {
           label: '关于 lite-md-viewer',
-          click: () => {
-            dialog.showMessageBox(mainWindow!, {
+          click: async () => {
+            const result = await dialog.showMessageBox(mainWindow!, {
               type: 'info',
               title: '关于',
               message: 'lite-md-viewer',
-              detail: `版本: ${app.getVersion()}\n轻量、高级、开箱即用的 Markdown 预览器\nMIT License © xwt`
+              detail: `版本: ${app.getVersion()}\n轻量、高级、开箱即用的 Markdown 预览器\nMIT License © xwt\n\n项目主页:\nhttps://github.com/wentao1176/lite-md-viewer`,
+              buttons: ['确定', '打开项目主页'],
+              defaultId: 0,
+              cancelId: 0
             })
+            if (result.response === 1) {
+              shell.openExternal('https://github.com/wentao1176/lite-md-viewer')
+            }
           }
         },
         {
           label: 'GitHub 仓库',
-          click: () => shell.openExternal('https://github.com/xwt/lite-md-viewer')
+          click: () => shell.openExternal('https://github.com/wentao1176/lite-md-viewer')
+        },
+        {
+          label: '检查更新',
+          click: () => {
+            if (app.isPackaged) {
+              autoUpdater.checkForUpdates().catch(() => {
+                dialog.showMessageBox(mainWindow!, {
+                  type: 'info',
+                  title: '检查更新',
+                  message: '当前已是最新版本',
+                  detail: `lite-md-viewer ${app.getVersion()}`
+                })
+              })
+            } else {
+              dialog.showMessageBox(mainWindow!, {
+                type: 'info',
+                title: '检查更新',
+                message: '开发模式不检查更新'
+              })
+            }
+          }
         }
       ]
     }

@@ -2,7 +2,7 @@
 
 > 轻量、高级、开箱即用的跨平台 Markdown 预览器 — 免费 & 开源 (MIT)
 
-[![GitHub release](https://img.shields.io/github/v/release/xwt/lite-md-viewer)](https://github.com/xwt/lite-md-viewer/releases)
+[![GitHub release](https://img.shields.io/github/v/release/wentao1176/lite-md-viewer)](https://github.com/wentao1176/lite-md-viewer/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-brightgreen)]()
 [![Electron](https://img.shields.io/badge/Electron-33-blue)]()
@@ -36,7 +36,7 @@
 
 ### Windows
 
-从 [Releases](https://github.com/xwt/lite-md-viewer/releases) 下载 `lite-md-viewer-Setup-x.x.x.exe`，双击安装即可。
+从 [Releases](https://github.com/wentao1176/lite-md-viewer/releases) 下载 `lite-md-viewer-Setup-x.x.x.exe`，双击安装即可。
 
 ### Linux
 
@@ -56,7 +56,7 @@ chmod +x lite-md-viewer-x.x.x.AppImage
 
 ```bash
 # 克隆仓库
-git clone https://github.com/xwt/lite-md-viewer.git
+git clone https://github.com/wentao1176/lite-md-viewer.git
 cd lite-md-viewer
 
 # 安装依赖
@@ -96,4 +96,4 @@ lite-md-viewer/
 
 ## License
 
-MIT © [xwt](https://github.com/xwt)
+MIT © [xwt](https://github.com/wentao1176)
