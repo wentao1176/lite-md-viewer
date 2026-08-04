@@ -39,6 +39,27 @@ files:
 # 裁剪 Electron 语言包
 afterPack: build/afterPack.js
 
+# 文件关联：安装后双击 .md 文件直接用本程序打开
+fileAssociations:
+  - ext: md
+    name: Markdown Document
+    description: Markdown 文档
+    icon: build/icons/icon.ico
+    role: Editor
+  - ext: markdown
+    name: Markdown Document
+    description: Markdown 文档
+    icon: build/icons/icon.ico
+    role: Editor
+  - ext: mdown
+    name: Markdown Document
+    icon: build/icons/icon.ico
+    role: Editor
+  - ext: mkd
+    name: Markdown Document
+    icon: build/icons/icon.ico
+    role: Editor
+
 win:
   icon: build/icons/icon.ico
   target:

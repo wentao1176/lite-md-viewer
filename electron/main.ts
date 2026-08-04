@@ -328,18 +328,64 @@ ipcMain.on('file:dropped', async (_event, filePath: string) => {
   }
 })
 
-app.whenReady().then(() => {
-  createWindow()
+// 从启动参数中提取 Markdown 文件路径（Windows 文件关联 / 命令行打开）
+function findMdFileArg(argv: string[]): string | null {
+  const exts = ['.md', '.markdown', '.mdown', '.mkd']
+  for (const arg of argv) {
+    if (!arg || arg === '.' || arg.startsWith('-')) continue
+    const lower = arg.toLowerCase()
+    if (exts.some((ext) => lower.endsWith(ext))) {
+      return arg
+    }
+  }
+  return null
+}
 
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow()
+// 打开文件并聚焦窗口（供单实例复用）
+function openFileInWindow(filePath: string) {
+  loadFile(filePath)
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.focus()
+  }
+}
+
+// 单实例锁：双击 .md 文件时若程序已运行，复用现有窗口打开新文件，而不是启动多个实例
+const gotTheLock = app.requestSingleInstanceLock()
+
+if (!gotTheLock) {
+  app.quit()
+} else {
+  // 第二个实例启动（程序已在运行时，双击 .md / 命令行再次调用）
+  app.on('second-instance', (_event, argv) => {
+    const filePath = findMdFileArg(argv)
+    if (filePath) {
+      openFileInWindow(filePath)
+    } else if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore()
+      mainWindow.focus()
     }
   })
 
-  // 自动更新：仅在打包后的正式版本生效（开发模式跳过）
-  setupAutoUpdater()
-})
+  app.whenReady().then(() => {
+    createWindow()
+
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) {
+        createWindow()
+      }
+    })
+
+    // 自动更新：仅在打包后的正式版本生效（开发模式跳过）
+    setupAutoUpdater()
+
+    // 启动参数中带文件（首次通过文件关联 / 命令行打开）
+    const startupFile = findMdFileArg(process.argv)
+    if (startupFile) {
+      setTimeout(() => openFileInWindow(startupFile), 600)
+    }
+  })
+}
 
 // 自动更新：从 GitHub Releases 拉取新版本，下载完成后提示重启安装
 function setupAutoUpdater() {
