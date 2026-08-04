@@ -95,6 +95,23 @@ npm run electron:build:linux  # Linux
 - **图表**：Mermaid
 - **打包**：electron-builder + NSIS
 
+## 安卓版（android/）
+
+手机端预览器，Kotlin + Jetpack Compose + Markwon：
+
+- 打开并渲染 .md 文件（SAF 文件选择器 + 系统"打开方式"关联）
+- GFM 表格 / 代码高亮 / LaTeX 公式
+- 导出 PDF（系统打印服务）
+- 深色/浅色主题跟随系统
+
+**构建方式**：用 Android Studio 打开 `android/` 目录，等待 Gradle 同步完成后运行即可（需要 Android SDK）。
+
+| 文件 | 说明 |
+|------|------|
+| `android/app/src/main/java/.../MainActivity.kt` | 主界面（打开/渲染/导出） |
+| `android/app/src/main/java/.../MarkdownRenderer.kt` | Markwon 渲染封装 + HTML 导出 |
+| `android/app/src/main/java/.../PdfExporter.kt` | PDF 导出（WebView + PrintManager） |
+
 ## 项目结构
 
 ```
