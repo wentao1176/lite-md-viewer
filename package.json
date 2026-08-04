@@ -1,6 +1,6 @@
 {
   "name": "lite-md-viewer",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "轻量、高级、开箱即用的跨平台 Markdown 预览器",
   "main": "dist-electron/main.js",
   "scripts": {
@@ -46,6 +46,7 @@
     "@vitejs/plugin-vue": "^5.2.0",
     "electron": "^33.3.0",
     "electron-builder": "^24.13.3",
+    "png-to-ico": "^3.0.2",
     "typescript": "^5.7.0",
     "vite": "^6.0.0",
     "vite-plugin-electron": "^0.28.8",

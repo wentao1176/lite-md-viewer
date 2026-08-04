@@ -15,8 +15,7 @@ files:
   - dist-electron/**/*
 
 win:
-  icon: build/icons/icon.png
-  signAndEditExecutable: false
+  icon: build/icons/icon.ico
   target:
     - target: nsis
       arch:
