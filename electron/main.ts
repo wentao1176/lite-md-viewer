@@ -279,6 +279,10 @@ ipcMain.handle('export:pdf', async (_event, html: string, opts: { pageNumbers?: 
   if (result.canceled || !result.filePath) {
     return { success: false, error: '已取消' }
   }
+  return await exportPdfToPath(result.filePath, html, opts)
+})
+
+async function exportPdfToPath(filePath: string, html: string, opts: { pageNumbers?: boolean }) {
 
   // A4 尺寸 @ 96dpi：210mm ≈ 794px，297mm ≈ 1123px
   const printWin = new BrowserWindow({
@@ -311,18 +315,18 @@ ipcMain.handle('export:pdf', async (_event, html: string, opts: { pageNumbers?: 
       preferCSSPageSize: false
     })
 
-    await writeFile(result.filePath, pdfData)
+    await writeFile(filePath, pdfData)
     // 可选：添加页码（每页底部居中"第 X 页 / 共 Y 页"）
     if (opts.pageNumbers) {
-      await addPageNumbersToPdf(result.filePath)
+      await addPageNumbersToPdf(filePath)
     }
-    return { success: true, path: result.filePath }
+    return { success: true, path: filePath }
   } catch (err: any) {
     return { success: false, error: err.message }
   } finally {
     printWin.destroy()
   }
-})
+}
 
 // 给 PDF 每页底部居中追加页码（pdf-lib 后处理）
 async function addPageNumbersToPdf(filePath: string) {
