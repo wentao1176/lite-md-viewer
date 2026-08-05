@@ -129,6 +129,15 @@ defineExpose({
   color: var(--text-primary);
 }
 
+/* CodeMirror 内部 .cm-content 自带 monospace 默认（运行时注入样式，需 !important 强制覆盖） */
+.editor-container :deep(.cm-content) {
+  font-family: 'Georgia', 'Times New Roman', 'KaiTi', 'STKaiti', '楷体', serif !important;
+}
+
+.editor-container :deep(.cm-gutters) {
+  font-family: 'Georgia', 'Times New Roman', 'KaiTi', 'STKaiti', '楷体', serif !important;
+}
+
 .editor-container :deep(.cm-scroller) {
   overflow: auto;
 }
