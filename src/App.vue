@@ -649,8 +649,7 @@ async function renderKatexAsImages(html: string): Promise<string> {
   const html2canvas = html2canvasMod.default || html2canvasMod
 
   const blocks = Array.from(html.matchAll(/<div class="katex-block">([\s\S]*?)<\/div>/g))
-  const inlines = Array.from(html.matchAll(/<span class="katex-inline">([\s\S]*?)<\/span>/g))
-  if (!blocks.length && !inlines.length) return html
+  if (!blocks.length) return html
 
   if (!katexImgContainer) {
     katexImgContainer = document.createElement('div')
@@ -661,7 +660,7 @@ async function renderKatexAsImages(html: string): Promise<string> {
 
   let out = html
 
-  // 块级公式 → 高清大图
+  // 块级公式 → 高清大图（行内公式保留 HTML 文字，可选中复制）
   for (const m of blocks) {
     try {
       const dataUrl = await formulaToPng(m[1], html2canvas, katexImgContainer)
@@ -671,19 +670,6 @@ async function renderKatexAsImages(html: string): Promise<string> {
       )
     } catch (err) {
       console.error('[katex] PDF 块级公式转图片失败:', err)
-    }
-  }
-
-  // 行内公式 → 高清小图（基线对齐）
-  for (const m of inlines) {
-    try {
-      const dataUrl = await formulaToPng(m[1], html2canvas, katexImgContainer)
-      out = out.replace(
-        m[0],
-        `<span class="katex-inline"><img class="katex-pdf-inline-img" src="${dataUrl}" alt="公式" /></span>`
-      )
-    } catch (err) {
-      console.error('[katex] PDF 行内公式转图片失败:', err)
     }
   }
 
