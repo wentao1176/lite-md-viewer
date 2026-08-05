@@ -1,6 +1,6 @@
 <template>
   <div class="preview-container" ref="previewEl" @click="handleClick">
-    <div class="markdown-body" v-html="html"></div>
+    <div class="markdown-body" v-html="html" :style="{ zoom: zoom / 100 }"></div>
   </div>
 </template>
 
@@ -10,6 +10,7 @@ import { ref, watch, nextTick } from 'vue'
 const props = defineProps<{
   html: string
   theme: 'light' | 'dark'
+  zoom: number
 }>()
 
 const emit = defineEmits<{
@@ -66,14 +67,6 @@ function showImageOverlay(src: string, alt: string) {
   })
   document.body.appendChild(overlay)
 }
-
-watch(() => props.html, async () => {
-  await nextTick()
-  // 滚动到顶部
-  if (previewEl.value) {
-    previewEl.value.scrollTop = 0
-  }
-})
 </script>
 
 <style scoped>
@@ -90,7 +83,7 @@ watch(() => props.html, async () => {
   font-size: 15px;
   line-height: 1.8;
   color: var(--text-primary);
-  font-family: var(--md-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', Roboto, 'Helvetica Neue', Arial, sans-serif);
+  font-family: var(--md-font, 'Times New Roman', 'Georgia', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', Roboto, 'Helvetica Neue', Arial, sans-serif);
 }
 
 .markdown-body :deep(h1),

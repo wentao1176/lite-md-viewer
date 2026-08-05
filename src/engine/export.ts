@@ -91,7 +91,7 @@ const MARKDOWN_CSS = `
   html, body {
     margin: 0;
     padding: 0;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    font-family: 'Times New Roman', 'Georgia', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', Roboto, 'Helvetica Neue', Arial, sans-serif;
     background: var(--bg-primary);
     color: var(--text-primary);
     -webkit-font-smoothing: antialiased;
@@ -319,13 +319,16 @@ export function buildExportHtml(
   const bgFix =
     options.bg === 'white'
       ? `
-  /* 纯白背景：覆盖米白变量 */
+  /* 纯白背景：覆盖米白变量；板块强调色用主题蓝 */
   :root {
     --bg-primary: #ffffff;
     --bg-secondary: #ffffff;
     --bg-tertiary: #f7f5f2;
     --code-bg: #faf8f5;
     --border-color: #ece7e0;
+    --accent-color: #4a7d8c;
+    --accent-hover: #3a6470;
+    --accent-soft: #eef5f7;
   }`
       : ``
 

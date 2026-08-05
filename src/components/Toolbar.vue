@@ -1,28 +1,40 @@
 <template>
   <div class="toolbar">
-    <div class="toolbar-left">
-      <svg class="logo" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-        <path d="M14 2v6h6" />
-        <path d="M8 13h8M8 17h5" />
-      </svg>
-      <span class="app-title">lite-md-viewer</span>
-    </div>
     <div class="toolbar-center">
-      <button class="toolbar-btn" @click="$emit('open-file')" title="打开文件 (Ctrl+O)">
-        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <button class="toolbar-btn icon-btn" @click="$emit('open-file')" title="打开文件 (Ctrl+O)">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
         </svg>
-        打开
       </button>
-      <button class="toolbar-btn" @click="$emit('save-file')" title="保存 (Ctrl+S)">
-        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <button class="toolbar-btn icon-btn" @click="$emit('save-file')" title="保存 (Ctrl+S)">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
           <path d="M17 21v-8H7v8M7 3v5h8" />
         </svg>
-        保存
       </button>
       <span class="toolbar-divider"></span>
+      <button class="toolbar-btn icon-btn" @click="$emit('undo')" title="撤销 (Ctrl+Z)">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 7v6h6" />
+          <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13" />
+        </svg>
+      </button>
+      <button class="toolbar-btn icon-btn" @click="$emit('redo')" title="重做 (Ctrl+Y)">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 7v6h-6" />
+          <path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3L21 13" />
+        </svg>
+      </button>
+      <span class="toolbar-divider"></span>
+      <div class="zoom-control" title="预览缩放（Ctrl+滚轮）">
+        <button class="toolbar-btn icon-btn" @click="$emit('zoom-out')" title="缩小">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12" /></svg>
+        </button>
+        <button class="zoom-value" @click="$emit('zoom-reset')" :title="previewZoom === 100 ? '100%' : '重置为 100%'">{{ previewZoom }}%</button>
+        <button class="toolbar-btn icon-btn" @click="$emit('zoom-in')" title="放大">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+        </button>
+      </div>
       <select class="font-select" :value="fontFamily" @change="$emit('font-change', ($event.target as HTMLSelectElement).value)" title="预览字体">
         <option v-for="f in FONT_OPTIONS" :key="f.value" :value="f.value">{{ f.label }}</option>
       </select>
@@ -79,69 +91,32 @@
         </svg>
       </button>
 
-      <!-- 导出 PDF（显眼按钮 + 背景选择） -->
-      <div class="pdf-export-wrap">
-        <button
-          class="toolbar-btn pdf-btn"
-          @click.stop="pdfMenuOpen = !pdfMenuOpen"
-          title="导出 PDF"
-        >
-          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-            <path d="M14 2v6h6" />
-            <path d="M8 13h8M8 17h8M8 21h8" />
-          </svg>
-          导出 PDF
-          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
-        </button>
-        <div v-if="pdfMenuOpen" class="pdf-menu" @click.stop>
-          <div class="pdf-menu-title">选择 PDF 背景</div>
-          <button
-            class="pdf-menu-item"
-            :class="{ selected: pdfBg === 'white' }"
-            @click="emit('select-pdf-bg', 'white')"
-          >
-            <span class="pdf-swatch white"></span>纯白背景
-            <svg v-if="pdfBg === 'white'" class="pdf-selected-mark" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="var(--accent-color)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-          </button>
-          <button
-            class="pdf-menu-item"
-            :class="{ selected: pdfBg === 'cream' }"
-            @click="emit('select-pdf-bg', 'cream')"
-          >
-            <span class="pdf-swatch cream"></span>米白背景
-            <svg v-if="pdfBg === 'cream'" class="pdf-selected-mark" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="var(--accent-color)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-          </button>
-          <div class="pdf-menu-divider"></div>
-          <button class="pdf-menu-item" @click="emit('toggle-page-numbers')">
-            <span class="pdf-check" :class="{ checked: pdfPageNumbers }">
-              <svg v-if="pdfPageNumbers" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-            </span>
-            显示页码
-          </button>
-          <div class="pdf-menu-divider"></div>
-          <button class="pdf-menu-confirm" @click="emit('export-pdf')">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-            确认导出 PDF
-          </button>
-        </div>
-      </div>
+      <!-- 导出（打开导出对话框：输出形式/背景/页码） -->
+      <button
+        class="toolbar-btn pdf-btn"
+        @click="$emit('open-export')"
+        title="导出文档"
+      >
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <path d="M14 2v6h6" />
+          <path d="M8 13h8M8 17h8M8 21h8" />
+        </svg>
+        导出
+      </button>
       <slot name="right" />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
-
 defineProps<{
   filePath: string
   theme: 'light' | 'dark' | 'white'
   showToc: boolean
   previewFullscreen: boolean
   fontFamily: string
-  pdfPageNumbers: boolean
-  pdfBg: 'white' | 'cream'
+  previewZoom: number
 }>()
 
 const emit = defineEmits<{
@@ -149,29 +124,24 @@ const emit = defineEmits<{
   'toggle-toc': []
   'open-file': []
   'save-file': []
+  'undo': []
+  'redo': []
   'toggle-fullscreen': []
   'font-change': [value: string]
-  'export-pdf': []
-  'select-pdf-bg': [bg: 'white' | 'cream']
-  'toggle-page-numbers': []
+  'open-export': []
+  'zoom-in': []
+  'zoom-out': []
+  'zoom-reset': []
 }>()
 
 // 常用预览字体（正文）：英文字体优先 + 中文字体配对，保证英文显示美观
 const FONT_OPTIONS = [
   { label: '默认字体', value: '' },
-  { label: '微软雅黑', value: "'Segoe UI', 'Inter', 'Roboto', 'Microsoft YaHei', 'PingFang SC', sans-serif" },
-  { label: '宋体', value: "'Georgia', 'Times New Roman', 'SimSun', 'Songti SC', serif" },
-  { label: '楷体', value: "'Georgia', 'KaiTi', 'STKaiti', 'Noto Serif SC', serif" },
-  { label: '黑体', value: "'Segoe UI', 'Helvetica Neue', 'Arial', 'SimHei', 'Heiti SC', sans-serif" }
+  { label: '微软雅黑', value: "'Times New Roman', 'Georgia', 'Segoe UI', 'Inter', 'Roboto', 'Microsoft YaHei', 'PingFang SC', sans-serif" },
+  { label: '宋体', value: "'Times New Roman', 'Georgia', 'SimSun', 'Songti SC', serif" },
+  { label: '楷体', value: "'Times New Roman', 'Georgia', 'KaiTi', 'STKaiti', 'Noto Serif SC', serif" },
+  { label: '黑体', value: "'Times New Roman', 'Georgia', 'Segoe UI', 'Helvetica Neue', 'Arial', 'SimHei', 'Heiti SC', sans-serif" }
 ]
-
-// PDF 背景选择菜单（仅打开/关闭；具体导出由"确认导出 PDF"触发）
-const pdfMenuOpen = ref(false)
-function closeMenu() {
-  pdfMenuOpen.value = false
-}
-onMounted(() => document.addEventListener('click', closeMenu))
-onUnmounted(() => document.removeEventListener('click', closeMenu))
 </script>
 
 <style scoped>
@@ -205,11 +175,9 @@ onUnmounted(() => document.removeEventListener('click', closeMenu))
   flex-shrink: 0;
 }
 
-.app-title {
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: 0.3px;
-  color: var(--text-primary);
+.toolbar-left .logo {
+  display: block;
+  color: var(--text-secondary);
 }
 
 .toolbar-btn {
@@ -277,6 +245,36 @@ onUnmounted(() => document.removeEventListener('click', closeMenu))
 
 .font-select:hover {
   border-color: var(--accent-color);
+}
+
+/* 预览缩放控件 */
+.zoom-control {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.zoom-control .icon-btn {
+  padding: 5px 7px;
+}
+
+.zoom-value {
+  min-width: 52px;
+  padding: 4px 6px;
+  border: 1px solid var(--border-color);
+  border-radius: 7px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.zoom-value:hover {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
 }
 
 /* 导出 PDF 按钮 + 背景菜单 */

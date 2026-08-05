@@ -7,7 +7,7 @@ import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter } from '@codemirror/view'
 import { EditorState } from '@codemirror/state'
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
-import { defaultKeymap } from '@codemirror/commands'
+import { history, historyKeymap, undo, redo, defaultKeymap } from '@codemirror/commands'
 
 const props = defineProps<{
   content: string
@@ -47,7 +47,9 @@ function createEditor() {
     lineNumbers(),
     highlightActiveLine(),
     highlightActiveLineGutter(),
+    history(),
     keymap.of(defaultKeymap),
+    keymap.of(historyKeymap),
     updateListener,
     EditorView.lineWrapping,
     EditorState.tabSize.of(2)
@@ -108,7 +110,13 @@ function scrollToLine(line: number) {
 
 defineExpose({
   getContent: () => editorView?.state.doc.toString() || '',
-  scrollToLine
+  scrollToLine,
+  undo: () => {
+    if (editorView) undo(editorView)
+  },
+  redo: () => {
+    if (editorView) redo(editorView)
+  }
 })
 </script>
 
@@ -121,8 +129,8 @@ defineExpose({
 
 .editor-container :deep(.cm-editor) {
   height: 100%;
-  /* 中文楷体 + 英文 Georgia（衬线配对，美观协调） */
-  font-family: 'Georgia', 'Times New Roman', 'KaiTi', 'STKaiti', '楷体', serif;
+  /* 中文楷体 + 英文 Times New Roman（衬线配对，数字标准体不会 0 像 o） */
+  font-family: 'Times New Roman', 'Georgia', 'KaiTi', 'STKaiti', '楷体', serif;
   font-size: 14px;
   line-height: 1.8;
   background: var(--bg-primary);
@@ -131,11 +139,11 @@ defineExpose({
 
 /* CodeMirror 内部 .cm-content 自带 monospace 默认（运行时注入样式，需 !important 强制覆盖） */
 .editor-container :deep(.cm-content) {
-  font-family: 'Georgia', 'Times New Roman', 'KaiTi', 'STKaiti', '楷体', serif !important;
+  font-family: 'Times New Roman', 'Georgia', 'KaiTi', 'STKaiti', '楷体', serif !important;
 }
 
 .editor-container :deep(.cm-gutters) {
-  font-family: 'Georgia', 'Times New Roman', 'KaiTi', 'STKaiti', '楷体', serif !important;
+  font-family: 'Times New Roman', 'Georgia', 'KaiTi', 'STKaiti', '楷体', serif !important;
 }
 
 .editor-container :deep(.cm-scroller) {

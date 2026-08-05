@@ -6,17 +6,19 @@
       :show-toc="showToc"
       :preview-fullscreen="previewFullscreen"
       :font-family="fontFamily"
-      :pdf-page-numbers="pdfPageNumbers"
-      :pdf-bg="pdfBg"
+      :preview-zoom="previewZoom"
       @toggle-theme="toggleTheme"
       @toggle-toc="toggleToc"
       @open-file="handleOpenFile"
       @save-file="handleSaveFile"
+      @undo="handleUndo"
+      @redo="handleRedo"
       @toggle-fullscreen="togglePreviewFullscreen"
       @font-change="handleFontChange"
-      @export-pdf="exportDocument('pdf')"
-      @select-pdf-bg="selectPdfBg"
-      @toggle-page-numbers="togglePageNumbers"
+      @open-export="exportDialogOpen = true"
+      @zoom-in="zoomIn"
+      @zoom-out="zoomOut"
+      @zoom-reset="zoomReset"
     >
       <!-- 通知铃铛（放进工具栏，随布局流动，避免与导出按钮重叠） -->
       <template #right>
@@ -28,6 +30,12 @@
         />
       </template>
     </Toolbar>
+    <!-- 导出对话框 -->
+    <ExportDialog
+      v-if="exportDialogOpen"
+      @close="exportDialogOpen = false"
+      @confirm="handleExportConfirm"
+    />
     <div class="main-area">
       <Sidebar
         v-if="showToc && !previewFullscreen"
@@ -55,6 +63,7 @@
         <Preview
           :html="renderedHtml"
           :theme="theme === 'dark' ? 'dark' : 'light'"
+          :zoom="previewZoom"
           @element-click="handlePreviewClick"
         />
       </div>
@@ -71,6 +80,7 @@ import Sidebar from './components/Sidebar.vue'
 import { getRenderer, type MarkdownRenderer } from './engine/renderer'
 import { buildExportHtml } from './engine/export'
 import NotificationBell, { type UpdaterState } from './components/NotificationBell.vue'
+import ExportDialog from './components/ExportDialog.vue'
 
 const theme = ref<'light' | 'dark' | 'white'>(loadTheme())
 const showToc = ref(true)
@@ -98,25 +108,54 @@ const updaterState = ref<UpdaterState>({
 // 预览全屏
 const previewFullscreen = ref(false)
 
-// PDF 页码开关（localStorage 持久化）
-const pdfPageNumbers = ref(localStorage.getItem('wtmd-pdf-page-numbers') === '1')
-function togglePageNumbers() {
-  pdfPageNumbers.value = !pdfPageNumbers.value
-  localStorage.setItem('wtmd-pdf-page-numbers', pdfPageNumbers.value ? '1' : '0')
+// 预览缩放（50% - 250%，localStorage 持久化）
+const previewZoom = ref(Number(localStorage.getItem('wtmd-zoom') || 100))
+function applyZoom(z: number) {
+  previewZoom.value = Math.min(250, Math.max(50, z))
+  localStorage.setItem('wtmd-zoom', String(previewZoom.value))
+}
+function zoomIn() {
+  applyZoom(Math.round((previewZoom.value + 10) / 10) * 10)
+}
+function zoomOut() {
+  applyZoom(Math.round((previewZoom.value - 10) / 10) * 10)
+}
+function zoomReset() {
+  applyZoom(100)
 }
 
-// PDF 背景选择（先选背景，再点"确认导出"；localStorage 持久化）
-const pdfBg = ref<'white' | 'cream'>(localStorage.getItem('wtmd-pdf-bg') === 'white' ? 'white' : 'cream')
-function selectPdfBg(bg: 'white' | 'cream') {
-  pdfBg.value = bg
-  localStorage.setItem('wtmd-pdf-bg', bg)
+// Ctrl + 鼠标滚轮缩放预览
+window.addEventListener(
+  'wheel',
+  (e: WheelEvent) => {
+    if (!e.ctrlKey) return
+    e.preventDefault()
+    const delta = e.deltaY < 0 ? 10 : -10
+    applyZoom(previewZoom.value + delta)
+  },
+  { passive: false }
+)
+
+// 导出对话框
+const exportDialogOpen = ref(false)
+function handleExportConfirm(opts: { format: 'pdf' | 'html'; bg: 'white' | 'cream'; pageNumbers: boolean }) {
+  exportDialogOpen.value = false
+  exportDocument(opts.format, opts.bg, opts.pageNumbers)
 }
 
-// 预览字体（localStorage 持久化）
-const fontFamily = ref(localStorage.getItem('wtmd-font') || '')
+// 撤销 / 重做（工具栏箭头按钮）
+function handleUndo() {
+  editorRef.value?.undo?.()
+}
+function handleRedo() {
+  editorRef.value?.redo?.()
+}
+
+// 预览字体（localStorage 持久化；v2 key 强制刷新为 Times 优先的新默认，避免旧 Georgia 值残留）
+const fontFamily = ref(localStorage.getItem('wtmd-font-v2') || '')
 function handleFontChange(value: string) {
   fontFamily.value = value
-  localStorage.setItem('wtmd-font', value)
+  localStorage.setItem('wtmd-font-v2', value)
 }
 
 function togglePreviewFullscreen() {
@@ -133,7 +172,7 @@ window.addEventListener('keydown', onKeydown)
 // Editor 组件通过 defineExpose 暴露 scrollToLine（预览 → 源码定位用）
 const editorRef = ref<{ scrollToLine: (line: number) => void } | null>(null)
 
-const DEFAULT_CONTENT = `# 欢迎使用 lite-md-viewer
+const DEFAULT_CONTENT = `# 欢迎使用 WTMD
 
 轻量、高级、开箱即用的 **Markdown 预览器**。
 
@@ -276,7 +315,7 @@ async function handleSaveFile() {
 }
 
 // 导出 HTML / PDF（核心实现）
-async function exportDocument(kind: 'html' | 'pdf', bg?: 'white' | 'cream') {
+async function exportDocument(kind: 'html' | 'pdf', bg: 'white' | 'cream' = 'cream', pageNumbers = false) {
   if (!window.electronAPI) {
     alert('导出功能仅在桌面版可用')
     return
@@ -311,14 +350,14 @@ async function exportDocument(kind: 'html' | 'pdf', bg?: 'white' | 'cream') {
       mermaidDark: wasDark,
       // PDF 背景：纯白 / 米白
       // PDF 背景：纯白 / 米白（纯白主题时默认导出纯白）
-      bg: kind === 'pdf' ? bg || (theme.value === 'white' ? 'white' : pdfBg.value) : undefined,
+      bg: kind === 'pdf' ? bg || (theme.value === 'white' ? 'white' : 'cream') : undefined,
       // 跟随预览选择的字体
       fontFamily: kind === 'pdf' ? fontFamily.value || undefined : undefined
     })
 
     const result = kind === 'html'
       ? await window.electronAPI.exportHtml(exportHtml)
-      : await window.electronAPI.exportPdf(exportHtml, { pageNumbers: pdfPageNumbers.value })
+      : await window.electronAPI.exportPdf(exportHtml, { pageNumbers })
 
     if (result.success) {
       // 导出成功后轻提示

@@ -68,7 +68,7 @@
         <div class="notice-card official">
           <div class="notice-title">📢 官方通知</div>
           <div class="notice-body">
-            <div class="official-text">欢迎使用 lite-md-viewer！新功能与更新会在此通知。</div>
+            <div class="official-text">欢迎使用 WTMD！新功能与更新会在此通知。</div>
             <a class="official-link" href="javascript:;" @click="openRepo">前往项目主页 →</a>
           </div>
         </div>
