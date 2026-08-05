@@ -83,6 +83,15 @@ export class MarkdownRenderer {
     const defaultRender = this.md.renderer.rules.fence?.bind(this.md.renderer.rules) ||
       ((tokens, idx, options, _env, self) => self.renderToken(tokens, idx, options))
 
+    // 标题锚点 id：渲染时给 <h1>-<h6> 加 id，供目录跳转/页内锚点使用
+    // （id 生成规则与 extractToc 完全一致：slugify 标题纯文本）
+    this.md.renderer.rules.heading_open = (tokens, idx, options, _env, self) => {
+      const inlineToken = tokens[idx + 1]
+      const text = inlineToken ? inlineToken.content : ''
+      tokens[idx].attrSet('id', slugify(text))
+      return self.renderToken(tokens, idx, options)
+    }
+
     // 自定义 fence 渲染（支持 Mermaid）
     this.md.renderer.rules.fence = (tokens, idx, options, env, self) => {
       const token = tokens[idx]
@@ -302,22 +311,31 @@ export class MarkdownRenderer {
   }
 
   extractToc(markdown: string): Array<{ level: number; text: string; id: string }> {
-    const headingRegex = /^(#{1,6})\s+(.+)$/gm
     const toc: Array<{ level: number; text: string; id: string }> = []
-    let match: RegExpExecArray | null
-
-    while ((match = headingRegex.exec(markdown)) !== null) {
-      const level = match[1].length
-      const text = match[2].trim()
-      const id = text
-        .toLowerCase()
-        .replace(/[^\w\u4e00-\u9fff]+/g, '-')
-        .replace(/^-+|-+$/g, '')
-      toc.push({ level, text, id })
+    const tokens = this.md.parse(markdown, {})
+    for (let i = 0; i < tokens.length; i++) {
+      const token = tokens[i]
+      if (token.type !== 'heading_open') continue
+      const level = Number(token.tag.slice(1))
+      // 收集该标题内联内容（与渲染时 heading_open 用的 tokens[idx+1].content 同源）
+      let text = ''
+      let j = i + 1
+      while (j < tokens.length && tokens[j].type !== 'heading_close') {
+        if (tokens[j].type === 'inline') text += tokens[j].content
+        j++
+      }
+      toc.push({ level, text, id: slugify(text) })
     }
-
     return toc
   }
+}
+
+// 标题 slug：与渲染时的 heading id 规则保持一致
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^\w\u4e00-\u9fff]+/g, '-')
+    .replace(/^-+|-+$/g, '')
 }
 
 // 单例
