@@ -1,6 +1,7 @@
 import MarkdownIt from 'markdown-it'
 import { createHighlighter, type Highlighter } from 'shiki'
 import katex from 'katex'
+import texmath from 'markdown-it-texmath'
 import DOMPurify from 'dompurify'
 
 export interface RenderOptions {
@@ -134,6 +135,18 @@ export class MarkdownRenderer {
 
     // KaTeX 数学公式
     if (this.options.enableKatex) {
+      // 解析 $...$ / $$...$$ 为 math_inline / math_block token
+      this.md.use(texmath, {
+        engine: katex,
+        delimiters: 'dollars',
+        wrapper: 'span',
+        blockWrapper: 'div',
+        katexOptions: {
+          throwOnError: false,
+          errorColor: '#cc0000'
+        }
+      })
+
       // 块级公式 $$...$$
       this.md.renderer.rules.math_block = (tokens, idx) => {
         try {
