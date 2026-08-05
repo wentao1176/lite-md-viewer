@@ -1,13 +1,18 @@
 <template>
-  <div class="app-wrapper" :class="[`theme-${theme}`, { 'toc-visible': showToc }]">
+  <div class="app-wrapper" :class="[`theme-${theme}`, { 'toc-visible': showToc }]" :style="fontFamily ? { '--md-font': fontFamily } : {}">
     <Toolbar
       :file-path="currentFilePath"
       :theme="theme"
       :show-toc="showToc"
+      :preview-fullscreen="previewFullscreen"
+      :font-family="fontFamily"
       @toggle-theme="toggleTheme"
       @toggle-toc="toggleToc"
       @open-file="handleOpenFile"
       @save-file="handleSaveFile"
+      @toggle-fullscreen="togglePreviewFullscreen"
+      @font-change="handleFontChange"
+      @export-pdf="(bg) => exportDocument('pdf', bg)"
     />
     <!-- 右上角铃铛通知中心 -->
     <div class="bell-slot">
@@ -20,11 +25,11 @@
     </div>
     <div class="main-area">
       <Sidebar
-        v-if="showToc"
+        v-if="showToc && !previewFullscreen"
         :toc-items="tocItems"
         @navigate="handleTocNavigate"
       />
-      <div class="editor-pane" :style="{ flex: editorRatio }">
+      <div v-if="!previewFullscreen" class="editor-pane" :style="{ flex: editorRatio }">
         <div class="pane-header">
           <span>Markdown 源码</span>
           <span class="pane-hint" v-if="currentFilePath">{{ currentFilePath }}</span>
@@ -37,8 +42,8 @@
           @cursor-line="handleCursorLine"
         />
       </div>
-      <div class="divider" @mousedown="startResize"></div>
-      <div class="preview-pane" :style="{ flex: previewRatio }">
+      <div v-if="!previewFullscreen" class="divider" @mousedown="startResize"></div>
+      <div class="preview-pane" :class="{ fullscreen: previewFullscreen }" :style="{ flex: previewFullscreen ? 1 : previewRatio }">
         <div class="pane-header">
           <span>实时预览</span>
         </div>
@@ -84,6 +89,28 @@ const updaterState = ref<UpdaterState>({
   bytesPerSecond: 0,
   message: ''
 })
+
+// 预览全屏
+const previewFullscreen = ref(false)
+
+// 预览字体（localStorage 持久化）
+const fontFamily = ref(localStorage.getItem('wtmd-font') || '')
+function handleFontChange(value: string) {
+  fontFamily.value = value
+  localStorage.setItem('wtmd-font', value)
+}
+
+function togglePreviewFullscreen() {
+  previewFullscreen.value = !previewFullscreen.value
+}
+
+// Esc 退出预览全屏
+function onKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape' && previewFullscreen.value) {
+    previewFullscreen.value = false
+  }
+}
+window.addEventListener('keydown', onKeydown)
 // Editor 组件通过 defineExpose 暴露 scrollToLine（预览 → 源码定位用）
 const editorRef = ref<{ scrollToLine: (line: number) => void } | null>(null)
 
@@ -227,7 +254,7 @@ async function handleSaveFile() {
 }
 
 // 导出 HTML / PDF（核心实现）
-async function exportDocument(kind: 'html' | 'pdf') {
+async function exportDocument(kind: 'html' | 'pdf', bg: 'white' | 'cream' = 'cream') {
   if (!window.electronAPI) {
     alert('导出功能仅在桌面版可用')
     return
@@ -253,7 +280,9 @@ async function exportDocument(kind: 'html' | 'pdf') {
     const exportTheme = kind === 'pdf' ? 'light' : theme.value
     const exportHtml = buildExportHtml(html, exportTheme, docTitle, {
       // 界面为深色时，Mermaid 图表是深色渲染的，需要在浅色 PDF 中反色
-      mermaidDark: wasDark
+      mermaidDark: wasDark,
+      // PDF 背景：纯白 / 米白
+      bg: kind === 'pdf' ? bg : undefined
     })
 
     const result = kind === 'html'
@@ -664,6 +693,16 @@ body {
   min-width: 300px;
   overflow: hidden;
   background: var(--bg-primary);
+}
+
+/* 预览全屏：占满整个工作区 */
+.preview-pane.fullscreen {
+  min-width: 0;
+}
+
+.preview-pane.fullscreen .markdown-body {
+  max-width: 1000px;
+  padding-top: 32px;
 }
 
 .pane-header {

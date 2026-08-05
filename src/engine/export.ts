@@ -245,7 +245,7 @@ export function buildExportHtml(
   markdownHtml: string,
   theme: ExportTheme,
   title?: string,
-  options: { mermaidDark?: boolean } = {}
+  options: { mermaidDark?: boolean; bg?: 'white' | 'cream' } = {}
 ): string {
   const docTitle = title || 'lite-md-viewer 导出文档'
   const mermaidFix = options.mermaidDark
@@ -259,6 +259,20 @@ export function buildExportHtml(
   }`
     : ``
 
+  // 背景模式：纯白 / 米白
+  const bgFix =
+    options.bg === 'white'
+      ? `
+  /* 纯白背景：覆盖米白变量 */
+  :root {
+    --bg-primary: #ffffff;
+    --bg-secondary: #ffffff;
+    --bg-tertiary: #f7f5f2;
+    --code-bg: #faf8f5;
+    --border-color: #ece7e0;
+  }`
+      : ``
+
   return `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -270,6 +284,7 @@ export function buildExportHtml(
   ${THEME_CSS[theme]}
   --radius-md: 12px;
 }
+${bgFix}
 ${MARKDOWN_CSS}
 ${mermaidFix}
 ${katexCss}

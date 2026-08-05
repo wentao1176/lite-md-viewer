@@ -90,6 +90,7 @@ watch(() => props.html, async () => {
   font-size: 15px;
   line-height: 1.8;
   color: var(--text-primary);
+  font-family: var(--md-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', Roboto, 'Helvetica Neue', Arial, sans-serif);
 }
 
 .markdown-body :deep(h1),
