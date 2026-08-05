@@ -1,5 +1,5 @@
 <template>
-  <div class="app-wrapper" :class="[`theme-${theme}`, { 'toc-visible': showToc }]" :style="fontFamily ? { '--md-font': fontFamily } : {}">
+  <div class="app-wrapper" :class="[`theme-${theme}`, { 'toc-visible': showToc }]" :style="fontFamily || editorFont ? { '--md-font': fontFamily || undefined, '--editor-font': editorFont || undefined } : {}">
     <Toolbar
       :file-path="currentFilePath"
       :theme="theme"
@@ -37,7 +37,12 @@
       <div v-if="!previewFullscreen" class="editor-pane" :style="{ flex: editorRatio }">
         <div class="pane-header">
           <span>Markdown 源码</span>
-          <span class="pane-hint" v-if="currentFilePath">{{ currentFilePath }}</span>
+          <span class="pane-header-right">
+            <select class="editor-font-select" :value="editorFont" @change="handleEditorFontChange(($event.target as HTMLSelectElement).value)" title="编辑器字体">
+              <option v-for="f in EDITOR_FONT_OPTIONS" :key="f.value" :value="f.value">{{ f.label }}</option>
+            </select>
+            <span class="pane-hint" v-if="currentFilePath">{{ currentFilePath }}</span>
+          </span>
         </div>
         <Editor
           ref="editorRef"
@@ -83,6 +88,15 @@ const editorRatio = ref(1)
 const previewRatio = ref(1)
 let renderer: MarkdownRenderer
 
+// 编辑器字体选项（等宽字体，localStorage 记住选择）
+const EDITOR_FONT_OPTIONS = [
+  { label: '默认字体', value: '' },
+  { label: 'Cascadia Code', value: "'Cascadia Code', 'Consolas', 'JetBrains Mono', monospace" },
+  { label: 'Consolas', value: "'Consolas', 'Cascadia Code', 'JetBrains Mono', monospace" },
+  { label: 'JetBrains Mono', value: "'JetBrains Mono', 'Cascadia Code', 'Consolas', monospace" },
+  { label: '微软雅黑', value: "'Microsoft YaHei', 'Consolas', 'Cascadia Code', monospace" }
+]
+
 // 更新通知状态（铃铛面板）
 const appVersion = ref('')
 const updaterState = ref<UpdaterState>({
@@ -117,6 +131,13 @@ const fontFamily = ref(localStorage.getItem('wtmd-font') || '')
 function handleFontChange(value: string) {
   fontFamily.value = value
   localStorage.setItem('wtmd-font', value)
+}
+
+// 编辑器字体（localStorage 持久化）
+const editorFont = ref(localStorage.getItem('wtmd-editor-font') || '')
+function handleEditorFontChange(value: string) {
+  editorFont.value = value
+  localStorage.setItem('wtmd-editor-font', value)
 }
 
 function togglePreviewFullscreen() {
@@ -850,6 +871,7 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  align-items: center;
   padding: 9px 18px;
   background: var(--bg-tertiary);
   border-bottom: 1px solid var(--border-color);
@@ -882,6 +904,29 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.pane-header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.editor-font-select {
+  height: 26px;
+  padding: 0 6px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  cursor: pointer;
+  outline: none;
+}
+
+.editor-font-select:hover {
+  border-color: var(--accent-color);
 }
 
 .divider {

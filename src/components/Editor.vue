@@ -121,9 +121,10 @@ defineExpose({
 
 .editor-container :deep(.cm-editor) {
   height: 100%;
-  font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace;
-  font-size: 14px;
-  line-height: 1.7;
+  font-family: var(--editor-font, 'Cascadia Code', 'Consolas', 'JetBrains Mono', 'SF Mono', 'Menlo', monospace);
+  font-size: 13.5px;
+  line-height: 1.75;
+  letter-spacing: 0.01em;
   background: var(--bg-primary);
   color: var(--text-primary);
 }
