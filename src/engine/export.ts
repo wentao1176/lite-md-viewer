@@ -98,7 +98,7 @@ const MARKDOWN_CSS = `
     line-height: 1.8;
   }
 
-  /* 无打印边距，让页面背景铺满整页 */
+  /* 打印边距由 printToPDF 参数控制（Chromium 打印 API 边距优先于此处默认值） */
   @page {
     margin: 0;
   }
