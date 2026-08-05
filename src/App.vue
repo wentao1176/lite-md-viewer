@@ -42,7 +42,7 @@
         <Editor
           ref="editorRef"
           :content="sourceContent"
-          :theme="theme"
+          :theme="theme === 'dark' ? 'dark' : 'light'"
           @update:content="handleContentChange"
           @cursor-line="handleCursorLine"
         />
@@ -54,7 +54,7 @@
         </div>
         <Preview
           :html="renderedHtml"
-          :theme="theme"
+          :theme="theme === 'dark' ? 'dark' : 'light'"
           @element-click="handlePreviewClick"
         />
       </div>
@@ -72,7 +72,7 @@ import { getRenderer, type MarkdownRenderer } from './engine/renderer'
 import { buildExportHtml } from './engine/export'
 import NotificationBell, { type UpdaterState } from './components/NotificationBell.vue'
 
-const theme = ref<'light' | 'dark'>(loadTheme())
+const theme = ref<'light' | 'dark' | 'white'>(loadTheme())
 const showToc = ref(true)
 const sourceContent = ref(DEFAULT_CONTENT)
 const renderedHtml = ref('')
@@ -208,22 +208,25 @@ graph TD
 > 提示：试试拖拽一个 \`.md\` 文件进来吧！
 `
 
-function loadTheme(): 'light' | 'dark' {
+function loadTheme(): 'light' | 'dark' | 'white' {
   try {
     const saved = localStorage.getItem('lite-md-theme')
-    if (saved === 'light' || saved === 'dark') return saved
+    if (saved === 'light' || saved === 'dark' || saved === 'white') return saved
   } catch { /* ignore */ }
   return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
 }
 
-function saveTheme(t: 'light' | 'dark') {
+function saveTheme(t: 'light' | 'dark' | 'white') {
   try {
     localStorage.setItem('lite-md-theme', t)
   } catch { /* ignore */ }
 }
 
+// 主题三态循环：米白 → 黑色 → 纯白 → 米白
+const THEME_CYCLE: Array<'light' | 'dark' | 'white'> = ['light', 'dark', 'white']
 function toggleTheme() {
-  theme.value = theme.value === 'dark' ? 'light' : 'dark'
+  const idx = THEME_CYCLE.indexOf(theme.value)
+  theme.value = THEME_CYCLE[(idx + 1) % THEME_CYCLE.length]
   saveTheme(theme.value)
   updateRenderer()
   renderContent()
@@ -306,7 +309,8 @@ async function exportDocument(kind: 'html' | 'pdf', bg?: 'white' | 'cream') {
       // 界面为深色时，Mermaid 图表是深色渲染的，需要在浅色 PDF 中反色
       mermaidDark: wasDark,
       // PDF 背景：纯白 / 米白
-      bg: kind === 'pdf' ? bg || pdfBg.value : undefined,
+      // PDF 背景：纯白 / 米白（纯白主题时默认导出纯白）
+      bg: kind === 'pdf' ? bg || (theme.value === 'white' ? 'white' : pdfBg.value) : undefined,
       // 跟随预览选择的字体
       fontFamily: kind === 'pdf' ? fontFamily.value || undefined : undefined
     })
@@ -363,7 +367,7 @@ async function renderContent() {
 }
 
 function updateRenderer() {
-  renderer.setTheme(theme.value)
+  renderer.setTheme(theme.value === 'dark' ? 'dark' : 'light')
 }
 
 function startResize(e: MouseEvent) {
@@ -506,7 +510,7 @@ onMounted(async () => {
     enableLineNumbers: true,
     sanitize: true
   })
-  renderer.setTheme(theme.value)
+  renderer.setTheme(theme.value === 'dark' ? 'dark' : 'light')
 
   // 监听 Electron IPC
   if (window.electronAPI) {
@@ -682,6 +686,28 @@ async function renderMermaidForExport(html: string): Promise<string> {
   --scrollbar-track: transparent;
   --shadow-soft: 0 4px 20px rgba(0, 0, 0, 0.25);
   --shadow-hover: 0 6px 24px rgba(0, 0, 0, 0.35);
+}
+
+/* 纯白主题 */
+.theme-white {
+  --bg-primary: #ffffff;
+  --bg-secondary: #fafafa;
+  --bg-tertiary: #f2f2f2;
+  --text-primary: #333333;
+  --text-secondary: #666666;
+  --text-tertiary: #999999;
+  --border-color: #e8e8e8;
+  --accent-color: #4a7d8c;
+  --accent-hover: #3a6470;
+  --accent-soft: #eef5f7;
+  --code-bg: #f8f8f8;
+  --toolbar-bg: #ffffff;
+  --toolbar-border: #e8e8e8;
+  --divider-color: #e8e8e8;
+  --scrollbar-thumb: #d4d4d4;
+  --scrollbar-track: transparent;
+  --shadow-soft: 0 4px 20px rgba(0, 0, 0, 0.06);
+  --shadow-hover: 0 6px 24px rgba(0, 0, 0, 0.1);
 }
 
 * {
