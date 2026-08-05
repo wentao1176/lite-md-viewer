@@ -1,5 +1,5 @@
 appId: com.xwt.lite-md-viewer
-productName: lite-md-viewer
+productName: WTMD
 copyright: Copyright © 2025 xwt
 
 directories:
@@ -73,7 +73,7 @@ nsis:
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
-  shortcutName: lite-md-viewer
+  shortcutName: WTMD
 
 linux:
   category: Utility

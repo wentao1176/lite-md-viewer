@@ -15,7 +15,7 @@ function createWindow() {
     height: 800,
     minWidth: 600,
     minHeight: 400,
-    title: 'lite-md-viewer',
+    title: 'WTMD',
     webPreferences: {
       preload: join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -111,12 +111,12 @@ function buildMenu() {
       label: '帮助',
       submenu: [
         {
-          label: '关于 lite-md-viewer',
+          label: '关于 WTMD',
           click: async () => {
             const result = await dialog.showMessageBox(mainWindow!, {
               type: 'info',
               title: '关于',
-              message: 'lite-md-viewer',
+              message: 'WTMD',
               detail: `版本: ${app.getVersion()}\n轻量、高级、开箱即用的 Markdown 预览器\nMIT License © xwt\n\n项目主页:\nhttps://github.com/wentao1176/lite-md-viewer`,
               buttons: ['确定', '打开项目主页'],
               defaultId: 0,
@@ -140,7 +140,7 @@ function buildMenu() {
                   type: 'info',
                   title: '检查更新',
                   message: '当前已是最新版本',
-                  detail: `lite-md-viewer ${app.getVersion()}`
+                  detail: `WTMD ${app.getVersion()}`
                 })
               })
             } else {
