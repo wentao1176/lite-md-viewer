@@ -98,8 +98,16 @@
           <button class="pdf-menu-item" @click="choosePdfBg('cream')">
             <span class="pdf-swatch cream"></span>米白背景
           </button>
+          <div class="pdf-menu-divider"></div>
+          <button class="pdf-menu-item" @click="emit('toggle-page-numbers')">
+            <span class="pdf-check" :class="{ checked: pdfPageNumbers }">
+              <svg v-if="pdfPageNumbers" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+            </span>
+            显示页码
+          </button>
         </div>
       </div>
+      <slot name="right" />
     </div>
   </div>
 </template>
@@ -113,6 +121,7 @@ defineProps<{
   showToc: boolean
   previewFullscreen: boolean
   fontFamily: string
+  pdfPageNumbers: boolean
 }>()
 
 const emit = defineEmits<{
@@ -123,6 +132,7 @@ const emit = defineEmits<{
   'toggle-fullscreen': []
   'font-change': [value: string]
   'export-pdf': [bg: 'white' | 'cream']
+  'toggle-page-numbers': []
 }>()
 
 // 常用预览字体（正文）
@@ -336,5 +346,28 @@ onUnmounted(() => document.removeEventListener('click', closeMenu))
 
 .pdf-swatch.cream {
   background: #faf7f2;
+}
+
+.pdf-menu-divider {
+  height: 1px;
+  background: var(--border-color);
+  margin: 5px 8px;
+}
+
+.pdf-check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  border: 1.5px solid var(--text-tertiary);
+  border-radius: 4px;
+  flex-shrink: 0;
+  color: var(--bg-primary);
+}
+
+.pdf-check.checked {
+  background: var(--accent-color);
+  border-color: var(--accent-color);
 }
 </style>

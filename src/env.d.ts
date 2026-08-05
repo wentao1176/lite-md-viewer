@@ -12,7 +12,7 @@ interface ElectronAPI {
   saveFile: (path: string, content: string) => Promise<{ success: boolean; error?: string }>
   saveFileAs: (content: string) => Promise<{ success: boolean; path?: string; error?: string }>
   exportHtml: (html: string) => Promise<{ success: boolean; path?: string; error?: string }>
-  exportPdf: (html: string) => Promise<{ success: boolean; path?: string; error?: string }>
+  exportPdf: (html: string, opts?: { pageNumbers?: boolean }) => Promise<{ success: boolean; path?: string; error?: string }>
   getAppVersion: () => Promise<string>
   onFileLoaded: (callback: (data: { path: string; content: string }) => void) => void
   onMenuSave: (callback: () => void) => void

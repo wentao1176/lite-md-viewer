@@ -151,6 +151,7 @@ function formatSpeed(bps: number): string {
 .notification-bell {
   position: relative;
   -webkit-app-region: no-drag;
+  margin-left: 6px;
 }
 
 .bell-btn {

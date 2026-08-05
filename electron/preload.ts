@@ -42,7 +42,7 @@ const api: ElectronAPI = {
   saveFile: (path: string, content: string) => ipcRenderer.invoke('file:save', path, content),
   saveFileAs: (content: string) => ipcRenderer.invoke('file:save-as', content),
   exportHtml: (html: string) => ipcRenderer.invoke('export:html', html),
-  exportPdf: (html: string) => ipcRenderer.invoke('export:pdf', html),
+  exportPdf: (html: string, opts?: { pageNumbers?: boolean }) => ipcRenderer.invoke('export:pdf', html, opts),
   getAppVersion: () => ipcRenderer.invoke('app:get-version'),
 
   onFileLoaded: (callback) => {

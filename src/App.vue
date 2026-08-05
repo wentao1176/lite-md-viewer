@@ -6,6 +6,7 @@
       :show-toc="showToc"
       :preview-fullscreen="previewFullscreen"
       :font-family="fontFamily"
+      :pdf-page-numbers="pdfPageNumbers"
       @toggle-theme="toggleTheme"
       @toggle-toc="toggleToc"
       @open-file="handleOpenFile"
@@ -13,16 +14,18 @@
       @toggle-fullscreen="togglePreviewFullscreen"
       @font-change="handleFontChange"
       @export-pdf="(bg) => exportDocument('pdf', bg)"
-    />
-    <!-- 右上角铃铛通知中心 -->
-    <div class="bell-slot">
-      <NotificationBell
-        :updater="updaterState"
-        :app-version="appVersion"
-        @check-update="manualCheckUpdate"
-        @install-update="installUpdateNow"
-      />
-    </div>
+      @toggle-page-numbers="togglePageNumbers"
+    >
+      <!-- 通知铃铛（放进工具栏，随布局流动，避免与导出按钮重叠） -->
+      <template #right>
+        <NotificationBell
+          :updater="updaterState"
+          :app-version="appVersion"
+          @check-update="manualCheckUpdate"
+          @install-update="installUpdateNow"
+        />
+      </template>
+    </Toolbar>
     <div class="main-area">
       <Sidebar
         v-if="showToc && !previewFullscreen"
@@ -92,6 +95,13 @@ const updaterState = ref<UpdaterState>({
 
 // 预览全屏
 const previewFullscreen = ref(false)
+
+// PDF 页码开关（localStorage 持久化）
+const pdfPageNumbers = ref(localStorage.getItem('wtmd-pdf-page-numbers') === '1')
+function togglePageNumbers() {
+  pdfPageNumbers.value = !pdfPageNumbers.value
+  localStorage.setItem('wtmd-pdf-page-numbers', pdfPageNumbers.value ? '1' : '0')
+}
 
 // 预览字体（localStorage 持久化）
 const fontFamily = ref(localStorage.getItem('wtmd-font') || '')
@@ -287,7 +297,7 @@ async function exportDocument(kind: 'html' | 'pdf', bg: 'white' | 'cream' = 'cre
 
     const result = kind === 'html'
       ? await window.electronAPI.exportHtml(exportHtml)
-      : await window.electronAPI.exportPdf(exportHtml)
+      : await window.electronAPI.exportPdf(exportHtml, { pageNumbers: pdfPageNumbers.value })
 
     if (result.success) {
       // 导出成功后轻提示
@@ -669,14 +679,6 @@ body {
   background: var(--bg-primary);
   transition: background-color 0.3s ease, color 0.3s ease;
   position: relative;
-}
-
-/* 铃铛通知容器（右上角，工具栏内） */
-.bell-slot {
-  position: absolute;
-  top: 8px;
-  right: 118px;
-  z-index: 100;
 }
 
 .main-area {

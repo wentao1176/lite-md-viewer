@@ -3,6 +3,7 @@ import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { readFile, writeFile } from 'fs/promises'
 import { autoUpdater } from 'electron-updater'
+import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
 
 // ESM 环境没有 __dirname，需要手动计算
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -269,7 +270,7 @@ ipcMain.handle('export:html', async (_event, html: string) => {
 })
 
 // 导出 PDF：用独立隐藏窗口加载 HTML 后 printToPDF（避免主窗口深色背景产生黑边）
-ipcMain.handle('export:pdf', async (_event, html: string) => {
+ipcMain.handle('export:pdf', async (_event, html: string, opts: { pageNumbers?: boolean } = {}) => {
   const result = await dialog.showSaveDialog(mainWindow!, {
     title: '导出 PDF',
     defaultPath: 'document.pdf',
@@ -311,6 +312,10 @@ ipcMain.handle('export:pdf', async (_event, html: string) => {
     })
 
     await writeFile(result.filePath, pdfData)
+    // 可选：添加页码（每页底部居中"第 X 页 / 共 Y 页"）
+    if (opts.pageNumbers) {
+      await addPageNumbersToPdf(result.filePath)
+    }
     return { success: true, path: result.filePath }
   } catch (err: any) {
     return { success: false, error: err.message }
@@ -318,6 +323,31 @@ ipcMain.handle('export:pdf', async (_event, html: string) => {
     printWin.destroy()
   }
 })
+
+// 给 PDF 每页底部居中追加页码（pdf-lib 后处理）
+async function addPageNumbersToPdf(filePath: string) {
+  const bytes = await readFile(filePath)
+  const pdf = await PDFDocument.load(bytes)
+  const pages = pdf.getPages()
+  const font = await pdf.embedFont(StandardFonts.Helvetica)
+  const total = pages.length
+  for (let i = 0; i < total; i++) {
+    const page = pages[i]
+    const { width, height } = page.getSize()
+    // 用纯数字页码（WinAnsi 字体不支持中文）
+    const label = `${i + 1} / ${total}`
+    const textWidth = font.widthOfTextAtSize(label, 9)
+    page.drawText(label, {
+      x: (width - textWidth) / 2,
+      y: 22,
+      size: 9,
+      font,
+      color: rgb(0.55, 0.53, 0.5)
+    })
+  }
+  const withNumbers = await pdf.save()
+  await writeFile(filePath, withNumbers)
+}
 
 ipcMain.handle('app:get-version', () => app.getVersion())
 
