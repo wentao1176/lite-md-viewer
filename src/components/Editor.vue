@@ -121,10 +121,10 @@ defineExpose({
 
 .editor-container :deep(.cm-editor) {
   height: 100%;
-  font-family: var(--editor-font, 'Cascadia Code', 'Consolas', 'JetBrains Mono', 'SF Mono', 'Menlo', monospace);
-  font-size: 13.5px;
-  line-height: 1.75;
-  letter-spacing: 0.01em;
+  /* 中文楷体 + 英文 Georgia（衬线配对，美观协调） */
+  font-family: 'Georgia', 'Times New Roman', 'KaiTi', 'STKaiti', '楷体', serif;
+  font-size: 14px;
+  line-height: 1.8;
   background: var(--bg-primary);
   color: var(--text-primary);
 }
