@@ -511,27 +511,42 @@ function initMermaid() {
       theme: theme.value === 'dark' ? 'dark' : 'neutral',
       securityLevel: 'sandbox'
     })
-    
-    // 监听渲染完成后处理 Mermaid 图表
-    watch(renderedHtml, async () => {
+
+    // 渲染所有未处理的 Mermaid 图表
+    const renderAll = async () => {
       await nextTick()
       const mermaidEls = document.querySelectorAll('.mermaid:not([data-processed])')
       for (const el of mermaidEls) {
+        const id = (el as HTMLElement).dataset.mermaidId || `mermaid-${Math.random().toString(36).slice(2)}`
         try {
-          const id = (el as HTMLElement).dataset.mermaidId || `mermaid-${Math.random().toString(36).slice(2)}`
           const { svg } = await mermaid.default.render(id, el.textContent || '')
           const container = el.parentElement
           if (container) {
             container.innerHTML = svg
           }
-        } catch {
-          // Mermaid 渲染失败
+          ;(el as HTMLElement).dataset.processed = 'true'
+        } catch (err) {
+          console.error('[mermaid] 图表渲染失败:', err)
+          const container = el.parentElement
+          if (container) {
+            container.innerHTML =
+              `<div class="mermaid-error">⚠️ 图表渲染失败，请检查 Mermaid 语法` +
+              `<div class="mermaid-error-code">${escapeHtmlText(el.textContent || '')}</div></div>`
+          }
         }
       }
-    })
-  }).catch(() => {
-    // Mermaid 加载失败，静默处理
+    }
+
+    // 监听渲染完成后处理 Mermaid 图表（immediate: 启动时已有内容也立即处理）
+    watch(renderedHtml, renderAll, { immediate: true })
+  }).catch((err) => {
+    console.error('[mermaid] 加载失败:', err)
   })
+}
+
+// 简单 HTML 转义（Mermaid 错误信息展示用）
+function escapeHtmlText(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 </script>
 

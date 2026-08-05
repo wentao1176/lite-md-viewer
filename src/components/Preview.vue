@@ -335,6 +335,30 @@ watch(() => props.html, async () => {
   max-width: 100%;
 }
 
+/* Mermaid 渲染失败占位 */
+.markdown-body :deep(.mermaid-error) {
+  padding: 16px 20px;
+  background: var(--bg-secondary);
+  border: 1px dashed #c96a5b;
+  border-radius: var(--radius-md);
+  color: #c96a5b;
+  font-size: 13px;
+  text-align: left;
+  line-height: 1.6;
+}
+
+.markdown-body :deep(.mermaid-error-code) {
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: var(--code-bg);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-tertiary);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
 /* 图片 */
 .markdown-body :deep(img.md-image) {
   max-width: 100%;

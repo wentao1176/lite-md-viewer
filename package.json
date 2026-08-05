@@ -1,7 +1,7 @@
-{
+﻿{
   "name": "lite-md-viewer",
-  "version": "1.0.9",
-  "description": "轻量、高级、开箱即用的跨平台 Markdown 预览器",
+  "version": "1.0.10",
+  "description": "杞婚噺銆侀珮绾с€佸紑绠卞嵆鐢ㄧ殑璺ㄥ钩鍙?Markdown 棰勮鍣?,
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
@@ -57,3 +57,4 @@
     "vue-tsc": "^2.2.0"
   }
 }
+
