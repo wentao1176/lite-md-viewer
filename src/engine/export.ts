@@ -245,12 +245,10 @@ const MARKDOWN_CSS = `
   }
 
   .markdown-body .katex-block {
-    margin: 1.2em 0;
+    margin: 1.4em 0;
     text-align: center;
     overflow-x: auto;
-    padding: 8px 0;
-    background: var(--bg-secondary);
-    border-radius: 12px;
+    padding: 4px 0;
     page-break-inside: avoid;
   }
   .markdown-body .katex-inline { display: inline; }
