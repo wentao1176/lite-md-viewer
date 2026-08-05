@@ -156,24 +156,28 @@ export class MarkdownRenderer {
         }
       })
 
-      // 块级公式 $$...$$
-      this.md.renderer.rules.math_block = (tokens, idx) => {
+      // 块级公式 $$...$$（PDF 导出时用 SVG 矢量输出，避免字体问题）
+      this.md.renderer.rules.math_block = (tokens, idx, _options, env) => {
         try {
+          const output = env?.katexOutput === 'svg' ? 'svg' : 'html'
           return `<div class="katex-block">${katex.renderToString(tokens[idx].content, {
             displayMode: true,
-            throwOnError: false
+            throwOnError: false,
+            output
           })}</div>`
         } catch {
           return `<div class="katex-error">数学公式渲染失败</div>`
         }
       }
 
-      // 行内公式 $...$
-      this.md.renderer.rules.math_inline = (tokens, idx) => {
+      // 行内公式 $...$（PDF 导出时用 SVG 矢量输出）
+      this.md.renderer.rules.math_inline = (tokens, idx, _options, env) => {
         try {
+          const output = env?.katexOutput === 'svg' ? 'svg' : 'html'
           return `<span class="katex-inline">${katex.renderToString(tokens[idx].content, {
             displayMode: false,
-            throwOnError: false
+            throwOnError: false,
+            output
           })}</span>`
         } catch {
           return `<span class="katex-error">?</span>`
@@ -238,8 +242,8 @@ export class MarkdownRenderer {
     }
   }
 
-  async render(markdown: string): Promise<string> {
-    const env: any = {}
+  async render(markdown: string, opts: { katexOutput?: 'html' | 'svg' } = {}): Promise<string> {
+    const env: any = { katexOutput: opts.katexOutput || 'html' }
     const tokens = this.md.parse(markdown, env)
     this.injectSourceLine(tokens)
     let html = this.md.renderer.render(tokens, this.md.options, env)

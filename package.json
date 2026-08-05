@@ -1,6 +1,6 @@
 {
   "name": "lite-md-viewer",
-  "version": "1.0.17",
+  "version": "1.0.18",
   "description": "轻量、高级、开箱即用的跨平台 Markdown 预览器",
   "main": "dist-electron/main.js",
   "scripts": {
@@ -34,6 +34,7 @@
     "codemirror": "^6.0.1",
     "dompurify": "^3.2.0",
     "electron-updater": "^6.8.9",
+    "html2canvas": "^1.4.1",
     "katex": "^0.16.0",
     "markdown-it": "^14.1.0",
     "markdown-it-texmath": "^1.0.0",

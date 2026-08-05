@@ -289,16 +289,17 @@ async function exportDocument(kind: 'html' | 'pdf', bg?: 'white' | 'cream') {
       renderer.setTheme('light')
     }
 
-    // 等待渲染完成
-    let html = await renderer.render(sourceContent.value)
+    // 等待渲染完成（KaTeX 用 html 输出，PDF 阶段再转 PNG 图片）
+    let html = await renderer.render(sourceContent.value, { katexOutput: 'html' })
 
     if (kind === 'pdf' && wasDark) {
       renderer.setTheme('dark')
     }
 
-    // PDF：把 Mermaid 占位源码替换为实际渲染的 SVG 图表
+    // PDF：把 Mermaid 占位源码替换为 SVG，KaTeX 公式渲染为 PNG 图片
     if (kind === 'pdf') {
       html = await renderMermaidForExport(html)
+      html = await renderKatexAsImages(html)
     }
 
     const docTitle = currentFilePath.value
@@ -638,6 +639,79 @@ async function renderMermaidForExport(html: string): Promise<string> {
     }
   }
   return out
+}
+
+// PDF 导出：把 KaTeX 公式渲染为透明 PNG 图片（位图不依赖字体文件，打印必现）
+// 预览界面仍用 HTML 字体渲染（清晰可选中）；仅 PDF 导出路径走图片
+let katexImgContainer: HTMLDivElement | null = null
+async function renderKatexAsImages(html: string): Promise<string> {
+  // 动态加载 html2canvas（仅导出时）
+  const html2canvasMod = await import('html2canvas')
+  const html2canvas = html2canvasMod.default || html2canvasMod
+
+  // 收集所有公式（块级 + 行内）
+  const blocks = Array.from(html.matchAll(/<div class="katex-block">([\s\S]*?)<\/div>/g))
+  const inlines = Array.from(html.matchAll(/<span class="katex-inline">([\s\S]*?)<\/span>/g))
+
+  if (blocks.length === 0 && inlines.length === 0) return html
+
+  // 隐藏渲染容器（复用，避免重复创建）
+  if (!katexImgContainer) {
+    katexImgContainer = document.createElement('div')
+    katexImgContainer.style.cssText =
+      'position:fixed;left:-10000px;top:0;z-index:-1;width:auto;background:transparent;'
+    document.body.appendChild(katexImgContainer)
+  }
+  const container = katexImgContainer
+
+  let out = html
+
+  // 块级公式 → 居中大图
+  for (const m of blocks) {
+    const formulaHtml = m[1]
+    try {
+      const dataUrl = await formulaToPng(formulaHtml, html2canvas, container)
+      out = out.replace(
+        m[0],
+        `<div class="katex-block"><img class="katex-pdf-img" src="${dataUrl}" alt="数学公式" /></div>`
+      )
+    } catch (err) {
+      console.error('[katex] PDF 块级公式转图片失败:', err)
+    }
+  }
+
+  // 行内公式 → 小图（基线对齐）
+  for (const m of inlines) {
+    const formulaHtml = m[1]
+    try {
+      const dataUrl = await formulaToPng(formulaHtml, html2canvas, container)
+      out = out.replace(
+        m[0],
+        `<span class="katex-inline"><img class="katex-pdf-inline-img" src="${dataUrl}" alt="公式" /></span>`
+      )
+    } catch (err) {
+      console.error('[katex] PDF 行内公式转图片失败:', err)
+    }
+  }
+
+  return out
+}
+
+// 单个公式 HTML → 透明 PNG data URL（高清 3x）
+async function formulaToPng(formulaHtml: string, html2canvas: any, container: HTMLDivElement): Promise<string> {
+  container.innerHTML = formulaHtml
+  // 等待字体与布局就绪
+  await document.fonts?.ready?.catch(() => {})
+  await new Promise((r) => setTimeout(r, 30))
+  const canvas = await html2canvas(container, {
+    backgroundColor: null,
+    scale: 3,
+    logging: false,
+    useCORS: true
+  })
+  const dataUrl = canvas.toDataURL('image/png')
+  container.innerHTML = ''
+  return dataUrl
 }
 </script>
 

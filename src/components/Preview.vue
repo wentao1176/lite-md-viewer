@@ -304,10 +304,12 @@ watch(() => props.html, async () => {
 
 /* KaTeX */
 .markdown-body :deep(.katex-block) {
-  margin: 1.4em 0;
+  margin: 1.2em 0;
   text-align: center;
   overflow-x: auto;
-  padding: 4px 0;
+  padding: 10px 14px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
 }
 
 .markdown-body :deep(.katex-inline) {
