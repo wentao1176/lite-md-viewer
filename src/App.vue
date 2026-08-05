@@ -509,7 +509,7 @@ function initMermaid() {
     mermaid.default.initialize({
       startOnLoad: false,
       theme: theme.value === 'dark' ? 'dark' : 'neutral',
-      securityLevel: 'sandbox'
+      securityLevel: 'strict'
     })
 
     // 渲染所有未处理的 Mermaid 图表
