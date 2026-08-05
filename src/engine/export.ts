@@ -253,17 +253,6 @@ const MARKDOWN_CSS = `
   }
   .markdown-body .katex-inline { display: inline; }
 
-  /* PDF 公式图片（html2canvas 位图） */
-  .markdown-body .katex-pdf-img {
-    max-width: 100%;
-    vertical-align: middle;
-  }
-  .markdown-body .katex-pdf-inline-img {
-    max-width: 100%;
-    vertical-align: -0.32em;
-    height: 1.25em;
-  }
-
   .markdown-body .mermaid-container {
     margin: 1.2em 0;
     padding: 20px;

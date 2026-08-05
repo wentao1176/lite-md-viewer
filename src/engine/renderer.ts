@@ -3,6 +3,32 @@ import { createHighlighter, type Highlighter } from 'shiki'
 import katex from 'katex'
 import texmath from 'markdown-it-texmath'
 import DOMPurify from 'dompurify'
+// MathJax：PDF 导出时把公式渲染为矢量 SVG（零字体依赖，Chromium 打印必现）
+import { mathjax } from 'mathjax-full/js/mathjax.js'
+import { TeX } from 'mathjax-full/js/input/tex.js'
+import { SVG } from 'mathjax-full/js/output/svg.js'
+import { liteAdaptor } from 'mathjax-full/js/adaptors/liteAdaptor.js'
+import { RegisterHTMLHandler } from 'mathjax-full/js/handlers/html.js'
+import { AllPackages } from 'mathjax-full/js/input/tex/AllPackages.js'
+
+// MathJax 单例（liteAdaptor 无需真实 DOM）
+let mjaxDoc: any = null
+function getMathjaxDoc(): any {
+  if (mjaxDoc) return mjaxDoc
+  const adaptor = liteAdaptor()
+  RegisterHTMLHandler(adaptor)
+  const tex = new TeX({ packages: AllPackages })
+  const svg = new SVG({ fontCache: 'none' })
+  mjaxDoc = mathjax.document('', { InputJax: tex, OutputJax: svg })
+  return mjaxDoc
+}
+
+// LaTeX → 矢量 SVG（PDF 公式用）
+function mathjaxSvg(latex: string, display: boolean): string {
+  const doc = getMathjaxDoc()
+  const node = doc.convert(latex, { display })
+  return doc.adaptor.outerHTML(node)
+}
 
 export interface RenderOptions {
   enableHighlight?: boolean
@@ -156,28 +182,40 @@ export class MarkdownRenderer {
         }
       })
 
-      // 块级公式 $$...$$（PDF 导出时用 SVG 矢量输出，避免字体问题）
+      // 块级公式 $$...$$（PDF 导出时用 MathJax 矢量 SVG，零字体依赖）
       this.md.renderer.rules.math_block = (tokens, idx, _options, env) => {
+        const output = env?.katexOutput
+        if (output === 'mathjax') {
+          try {
+            return `<div class="katex-block">${mathjaxSvg(tokens[idx].content, true)}</div>`
+          } catch {
+            return `<div class="katex-error">数学公式渲染失败</div>`
+          }
+        }
         try {
-          const output = env?.katexOutput === 'svg' ? 'svg' : 'html'
           return `<div class="katex-block">${katex.renderToString(tokens[idx].content, {
             displayMode: true,
-            throwOnError: false,
-            output
+            throwOnError: false
           })}</div>`
         } catch {
           return `<div class="katex-error">数学公式渲染失败</div>`
         }
       }
 
-      // 行内公式 $...$（PDF 导出时用 SVG 矢量输出）
+      // 行内公式 $...$（PDF 导出时用 MathJax 矢量 SVG）
       this.md.renderer.rules.math_inline = (tokens, idx, _options, env) => {
+        const output = env?.katexOutput
+        if (output === 'mathjax') {
+          try {
+            return `<span class="katex-inline">${mathjaxSvg(tokens[idx].content, false)}</span>`
+          } catch {
+            return `<span class="katex-error">?</span>`
+          }
+        }
         try {
-          const output = env?.katexOutput === 'svg' ? 'svg' : 'html'
           return `<span class="katex-inline">${katex.renderToString(tokens[idx].content, {
             displayMode: false,
-            throwOnError: false,
-            output
+            throwOnError: false
           })}</span>`
         } catch {
           return `<span class="katex-error">?</span>`
@@ -242,7 +280,7 @@ export class MarkdownRenderer {
     }
   }
 
-  async render(markdown: string, opts: { katexOutput?: 'html' | 'svg' } = {}): Promise<string> {
+  async render(markdown: string, opts: { katexOutput?: 'html' | 'mathjax' } = {}): Promise<string> {
     const env: any = { katexOutput: opts.katexOutput || 'html' }
     const tokens = this.md.parse(markdown, env)
     this.injectSourceLine(tokens)
