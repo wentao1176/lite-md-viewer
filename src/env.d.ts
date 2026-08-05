@@ -21,6 +21,9 @@ interface ElectronAPI {
   onMenuToggleTheme: (callback: () => void) => void
   onMenuToggleToc: (callback: () => void) => void
   onFolderOpened: (callback: (folderPath: string) => void) => void
+  onUpdaterEvent: (callback: (event: any) => void) => void
+  checkForUpdates: () => Promise<{ success: boolean; error?: string }>
+  installUpdate: () => Promise<void>
   removeAllListeners: (channel: string) => void
 }
 

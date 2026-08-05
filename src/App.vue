@@ -9,6 +9,15 @@
       @open-file="handleOpenFile"
       @save-file="handleSaveFile"
     />
+    <!-- 右上角铃铛通知中心 -->
+    <div class="bell-slot">
+      <NotificationBell
+        :updater="updaterState"
+        :app-version="appVersion"
+        @check-update="manualCheckUpdate"
+        @install-update="installUpdateNow"
+      />
+    </div>
     <div class="main-area">
       <Sidebar
         v-if="showToc"
@@ -51,6 +60,7 @@ import Preview from './components/Preview.vue'
 import Sidebar from './components/Sidebar.vue'
 import { getRenderer, type MarkdownRenderer } from './engine/renderer'
 import { buildExportHtml } from './engine/export'
+import NotificationBell, { type UpdaterState } from './components/NotificationBell.vue'
 
 const theme = ref<'light' | 'dark'>(loadTheme())
 const showToc = ref(true)
@@ -62,6 +72,18 @@ const tocItems = ref<Array<{ level: number; text: string; id: string }>>([])
 const editorRatio = ref(1)
 const previewRatio = ref(1)
 let renderer: MarkdownRenderer
+
+// 更新通知状态（铃铛面板）
+const appVersion = ref('')
+const updaterState = ref<UpdaterState>({
+  status: 'idle',
+  version: '',
+  percent: 0,
+  transferred: 0,
+  total: 0,
+  bytesPerSecond: 0,
+  message: ''
+})
 // Editor 组件通过 defineExpose 暴露 scrollToLine（预览 → 源码定位用）
 const editorRef = ref<{ scrollToLine: (line: number) => void } | null>(null)
 
@@ -321,6 +343,74 @@ function handleTocNavigate(id: string) {
   }
 }
 
+// 更新事件处理（铃铛通知）
+function handleUpdaterEvent(event: any) {
+  switch (event.type) {
+    case 'checking':
+      updaterState.value.status = 'checking'
+      break
+    case 'available':
+      updaterState.value = {
+        status: 'available',
+        version: event.version,
+        percent: 0,
+        transferred: 0,
+        total: 0,
+        bytesPerSecond: 0,
+        message: ''
+      }
+      break
+    case 'not-available':
+      updaterState.value = { ...updaterState.value, status: 'idle', version: event.version }
+      break
+    case 'progress':
+      updaterState.value = {
+        status: 'downloading',
+        version: updaterState.value.version,
+        percent: event.percent,
+        transferred: event.transferred,
+        total: event.total,
+        bytesPerSecond: event.bytesPerSecond,
+        message: ''
+      }
+      break
+    case 'downloaded':
+      updaterState.value = {
+        ...updaterState.value,
+        status: 'downloaded',
+        version: event.version,
+        percent: 100
+      }
+      break
+    case 'error':
+      updaterState.value = {
+        status: 'error',
+        version: updaterState.value.version,
+        percent: 0,
+        transferred: 0,
+        total: 0,
+        bytesPerSecond: 0,
+        message: event.message
+      }
+      break
+  }
+}
+
+async function manualCheckUpdate() {
+  updaterState.value.status = 'checking'
+  if (!window.electronAPI) return
+  const result = await window.electronAPI.checkForUpdates()
+  if (!result.success && result.error === '开发模式') {
+    showToast('开发模式不检查更新', true)
+  }
+}
+
+async function installUpdateNow() {
+  if (window.electronAPI) {
+    await window.electronAPI.installUpdate()
+  }
+}
+
 // 源码 → 预览：光标所在行对应预览元素高亮并滚动
 function handleCursorLine(line: number) {
   const previewContainer = document.querySelector('.preview-pane .preview-container')
@@ -375,6 +465,16 @@ onMounted(async () => {
     window.electronAPI.onMenuExportPdf(() => exportDocument('pdf'))
     window.electronAPI.onMenuToggleTheme(() => toggleTheme())
     window.electronAPI.onMenuToggleToc(() => toggleToc())
+
+    // 更新事件 → 铃铛通知
+    window.electronAPI.onUpdaterEvent((event: any) => {
+      handleUpdaterEvent(event)
+    })
+
+    // 当前版本号
+    window.electronAPI.getAppVersion().then((v) => {
+      appVersion.value = v
+    })
   }
 
   // 监听拖拽（浏览器环境）
@@ -524,6 +624,15 @@ body {
   color: var(--text-primary);
   background: var(--bg-primary);
   transition: background-color 0.3s ease, color 0.3s ease;
+  position: relative;
+}
+
+/* 铃铛通知容器（右上角，工具栏内） */
+.bell-slot {
+  position: absolute;
+  top: 8px;
+  right: 118px;
+  z-index: 100;
 }
 
 .main-area {

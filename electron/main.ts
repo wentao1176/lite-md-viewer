@@ -387,15 +387,21 @@ if (!gotTheLock) {
   })
 }
 
-// 自动更新：从 GitHub Releases 拉取新版本，下载完成后提示重启安装
+// 自动更新：状态实时推送到渲染进程（铃铛通知 + 下载进度）
 function setupAutoUpdater() {
   if (!app.isPackaged) return
 
   autoUpdater.autoDownload = true
   autoUpdater.autoInstallOnAppQuit = true
 
+  // 向渲染进程推送更新状态
+  const push = (type: string, data?: any) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('updater:event', { type, ...data })
+    }
+  }
+
   // 检查失败的退避重试计划（分钟）：启动失败后 10/30/60 分钟各重试一次
-  let retryAttempt = 0
   const retryDelays = [10, 30, 60]
 
   const scheduleRetry = () => {
@@ -412,38 +418,40 @@ function setupAutoUpdater() {
 
   autoUpdater.on('checking-for-update', () => {
     console.log('[updater] checking for updates...')
+    push('checking')
   })
 
   autoUpdater.on('update-available', (info) => {
     console.log('[updater] update available:', info.version)
+    push('available', { version: info.version })
   })
 
   autoUpdater.on('update-not-available', (info) => {
     console.log('[updater] no update:', info.version)
+    push('not-available', { version: info.version })
+  })
+
+  autoUpdater.on('download-progress', (progress) => {
+    const percent = Math.round(progress.percent * 10) / 10
+    const mb = (bytes: number) => (bytes / 1024 / 1024).toFixed(1)
+    console.log(`[updater] downloading ${percent}% (${mb(progress.transferred)}MB / ${mb(progress.total)}MB)`)
+    push('progress', {
+      percent,
+      transferred: progress.transferred,
+      total: progress.total,
+      bytesPerSecond: progress.bytesPerSecond
+    })
   })
 
   autoUpdater.on('error', (err) => {
     console.error('[updater] error:', err.message)
+    push('error', { message: err.message })
     scheduleRetry()
   })
 
-  autoUpdater.on('update-downloaded', async (info) => {
-    const win = BrowserWindow.getFocusedWindow() || mainWindow
-    const result = win
-      ? await dialog.showMessageBox(win, {
-          type: 'info',
-          title: '发现新版本',
-          message: `lite-md-viewer ${info.version} 已下载完成`,
-          detail: '重启应用即可完成更新，是否现在重启？',
-          buttons: ['立即重启', '稍后再说'],
-          defaultId: 0,
-          cancelId: 1
-        })
-      : { response: 1 }
-
-    if (result.response === 0) {
-      autoUpdater.quitAndInstall()
-    }
+  autoUpdater.on('update-downloaded', (info) => {
+    console.log('[updater] downloaded:', info.version)
+    push('downloaded', { version: info.version })
   })
 
   // 延迟几秒检查，避免拖慢冷启动；失败时进入退避重试
@@ -462,6 +470,30 @@ function setupAutoUpdater() {
     })
   }, 4 * 60 * 60 * 1000)
 }
+
+// 渲染进程请求：手动检查更新 / 立即重启安装
+ipcMain.handle('updater:check', async () => {
+  if (!app.isPackaged) {
+    return { success: false, error: '开发模式' }
+  }
+  retryAttemptReset()
+  try {
+    await autoUpdater.checkForUpdates()
+    return { success: true }
+  } catch (err: any) {
+    return { success: false, error: err.message }
+  }
+})
+
+let retryAttempt = 0
+function retryAttemptReset() {
+  retryAttempt = 0
+}
+
+ipcMain.handle('updater:install', async () => {
+  autoUpdater.quitAndInstall()
+  return { success: true }
+})
 
 // Windows: 通过文件关联打开 .md 文件
 app.on('open-file', async (_event, filePath) => {

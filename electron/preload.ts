@@ -6,6 +6,15 @@ export interface ExportResult {
   error?: string
 }
 
+// 更新事件（主进程 → 渲染进程）
+export type UpdaterEvent =
+  | { type: 'checking' }
+  | { type: 'available'; version: string }
+  | { type: 'not-available'; version: string }
+  | { type: 'progress'; percent: number; transferred: number; total: number; bytesPerSecond: number }
+  | { type: 'downloaded'; version: string }
+  | { type: 'error'; message: string }
+
 export interface ElectronAPI {
   openFile: () => Promise<void>
   readFile: (path: string) => Promise<{ success: boolean; content?: string; error?: string }>
@@ -21,6 +30,9 @@ export interface ElectronAPI {
   onMenuToggleTheme: (callback: () => void) => void
   onMenuToggleToc: (callback: () => void) => void
   onFolderOpened: (callback: (folderPath: string) => void) => void
+  onUpdaterEvent: (callback: (event: UpdaterEvent) => void) => void
+  checkForUpdates: () => Promise<{ success: boolean; error?: string }>
+  installUpdate: () => Promise<void>
   removeAllListeners: (channel: string) => void
 }
 
@@ -54,6 +66,11 @@ const api: ElectronAPI = {
   onFolderOpened: (callback) => {
     ipcRenderer.on('folder:opened', (_event, folderPath) => callback(folderPath))
   },
+  onUpdaterEvent: (callback) => {
+    ipcRenderer.on('updater:event', (_event, data) => callback(data))
+  },
+  checkForUpdates: () => ipcRenderer.invoke('updater:check'),
+  installUpdate: () => ipcRenderer.invoke('updater:install'),
   removeAllListeners: (channel: string) => {
     ipcRenderer.removeAllListeners(channel)
   }
