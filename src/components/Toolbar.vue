@@ -92,11 +92,21 @@
         </button>
         <div v-if="pdfMenuOpen" class="pdf-menu" @click.stop>
           <div class="pdf-menu-title">选择 PDF 背景</div>
-          <button class="pdf-menu-item" @click="choosePdfBg('white')">
+          <button
+            class="pdf-menu-item"
+            :class="{ selected: pdfBg === 'white' }"
+            @click="emit('select-pdf-bg', 'white')"
+          >
             <span class="pdf-swatch white"></span>纯白背景
+            <svg v-if="pdfBg === 'white'" class="pdf-selected-mark" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="var(--accent-color)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
           </button>
-          <button class="pdf-menu-item" @click="choosePdfBg('cream')">
+          <button
+            class="pdf-menu-item"
+            :class="{ selected: pdfBg === 'cream' }"
+            @click="emit('select-pdf-bg', 'cream')"
+          >
             <span class="pdf-swatch cream"></span>米白背景
+            <svg v-if="pdfBg === 'cream'" class="pdf-selected-mark" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="var(--accent-color)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
           </button>
           <div class="pdf-menu-divider"></div>
           <button class="pdf-menu-item" @click="emit('toggle-page-numbers')">
@@ -104,6 +114,11 @@
               <svg v-if="pdfPageNumbers" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
             </span>
             显示页码
+          </button>
+          <div class="pdf-menu-divider"></div>
+          <button class="pdf-menu-confirm" @click="emit('export-pdf')">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+            确认导出 PDF
           </button>
         </div>
       </div>
@@ -122,6 +137,7 @@ defineProps<{
   previewFullscreen: boolean
   fontFamily: string
   pdfPageNumbers: boolean
+  pdfBg: 'white' | 'cream'
 }>()
 
 const emit = defineEmits<{
@@ -131,7 +147,8 @@ const emit = defineEmits<{
   'save-file': []
   'toggle-fullscreen': []
   'font-change': [value: string]
-  'export-pdf': [bg: 'white' | 'cream']
+  'export-pdf': []
+  'select-pdf-bg': [bg: 'white' | 'cream']
   'toggle-page-numbers': []
 }>()
 
@@ -144,12 +161,8 @@ const FONT_OPTIONS = [
   { label: '黑体', value: "'SimHei', 'Heiti SC', 'Noto Sans SC', sans-serif" }
 ]
 
-// PDF 背景选择菜单
+// PDF 背景选择菜单（仅打开/关闭；具体导出由"确认导出 PDF"触发）
 const pdfMenuOpen = ref(false)
-function choosePdfBg(bg: 'white' | 'cream') {
-  pdfMenuOpen.value = false
-  emit('export-pdf', bg)
-}
 function closeMenu() {
   pdfMenuOpen.value = false
 }
@@ -330,6 +343,35 @@ onUnmounted(() => document.removeEventListener('click', closeMenu))
 
 .pdf-menu-item:hover {
   background: var(--bg-tertiary);
+}
+
+.pdf-menu-item.selected {
+  background: var(--accent-soft);
+}
+
+.pdf-selected-mark {
+  margin-left: auto;
+}
+
+.pdf-menu-confirm {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 9px 10px;
+  border: none;
+  border-radius: 8px;
+  background: var(--accent-color);
+  color: var(--bg-primary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.pdf-menu-confirm:hover {
+  background: var(--accent-hover);
 }
 
 .pdf-swatch {

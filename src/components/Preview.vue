@@ -259,8 +259,8 @@ watch(() => props.html, async () => {
 .markdown-body :deep(.line-numbers) {
   display: flex;
   flex-direction: column;
-  padding: 13px 10px 13px 14px;
-  background: var(--bg-secondary);
+  padding: 13px 12px 13px 16px;
+  background: transparent;
   border-right: 1px solid var(--border-color);
   color: var(--text-tertiary);
   font-size: 13px;
@@ -268,11 +268,14 @@ watch(() => props.html, async () => {
   user-select: none;
   text-align: right;
   min-width: 44px;
+  opacity: 0.9;
 }
 
 .markdown-body :deep(.line-numbers span) {
   font-family: 'Cascadia Code', 'Fira Code', monospace;
-  font-size: 12.5px;
+  font-size: 12px;
+  line-height: 1.72;
+  opacity: 0.85;
 }
 
 .markdown-body :deep(.shiki-target),

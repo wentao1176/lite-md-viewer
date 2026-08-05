@@ -7,13 +7,15 @@
       :preview-fullscreen="previewFullscreen"
       :font-family="fontFamily"
       :pdf-page-numbers="pdfPageNumbers"
+      :pdf-bg="pdfBg"
       @toggle-theme="toggleTheme"
       @toggle-toc="toggleToc"
       @open-file="handleOpenFile"
       @save-file="handleSaveFile"
       @toggle-fullscreen="togglePreviewFullscreen"
       @font-change="handleFontChange"
-      @export-pdf="(bg) => exportDocument('pdf', bg)"
+      @export-pdf="exportDocument('pdf')"
+      @select-pdf-bg="selectPdfBg"
       @toggle-page-numbers="togglePageNumbers"
     >
       <!-- 通知铃铛（放进工具栏，随布局流动，避免与导出按钮重叠） -->
@@ -101,6 +103,13 @@ const pdfPageNumbers = ref(localStorage.getItem('wtmd-pdf-page-numbers') === '1'
 function togglePageNumbers() {
   pdfPageNumbers.value = !pdfPageNumbers.value
   localStorage.setItem('wtmd-pdf-page-numbers', pdfPageNumbers.value ? '1' : '0')
+}
+
+// PDF 背景选择（先选背景，再点"确认导出"；localStorage 持久化）
+const pdfBg = ref<'white' | 'cream'>(localStorage.getItem('wtmd-pdf-bg') === 'white' ? 'white' : 'cream')
+function selectPdfBg(bg: 'white' | 'cream') {
+  pdfBg.value = bg
+  localStorage.setItem('wtmd-pdf-bg', bg)
 }
 
 // 预览字体（localStorage 持久化）
@@ -264,7 +273,7 @@ async function handleSaveFile() {
 }
 
 // 导出 HTML / PDF（核心实现）
-async function exportDocument(kind: 'html' | 'pdf', bg: 'white' | 'cream' = 'cream') {
+async function exportDocument(kind: 'html' | 'pdf', bg?: 'white' | 'cream') {
   if (!window.electronAPI) {
     alert('导出功能仅在桌面版可用')
     return
@@ -278,10 +287,15 @@ async function exportDocument(kind: 'html' | 'pdf', bg: 'white' | 'cream' = 'cre
     }
 
     // 等待渲染完成
-    const html = await renderer.render(sourceContent.value)
+    let html = await renderer.render(sourceContent.value)
 
     if (kind === 'pdf' && wasDark) {
       renderer.setTheme('dark')
+    }
+
+    // PDF：把 Mermaid 占位源码替换为实际渲染的 SVG 图表
+    if (kind === 'pdf') {
+      html = await renderMermaidForExport(html)
     }
 
     const docTitle = currentFilePath.value
@@ -292,7 +306,9 @@ async function exportDocument(kind: 'html' | 'pdf', bg: 'white' | 'cream' = 'cre
       // 界面为深色时，Mermaid 图表是深色渲染的，需要在浅色 PDF 中反色
       mermaidDark: wasDark,
       // PDF 背景：纯白 / 米白
-      bg: kind === 'pdf' ? bg : undefined
+      bg: kind === 'pdf' ? bg || pdfBg.value : undefined,
+      // 跟随预览选择的字体
+      fontFamily: kind === 'pdf' ? fontFamily.value || undefined : undefined
     })
 
     const result = kind === 'html'
@@ -542,10 +558,14 @@ onUnmounted(() => {
   if (renderTimer) clearTimeout(renderTimer)
 })
 
+// Mermaid 实例（供预览渲染与 PDF 导出复用）
+let mermaidApi: any = null
+
 function initMermaid() {
   // 使用动态 import 加载 Mermaid
   import('mermaid').then((mermaid) => {
-    mermaid.default.initialize({
+    mermaidApi = mermaid.default
+    mermaidApi.initialize({
       startOnLoad: false,
       theme: theme.value === 'dark' ? 'dark' : 'neutral',
       securityLevel: 'strict'
@@ -586,6 +606,34 @@ function initMermaid() {
 // 简单 HTML 转义（Mermaid 错误信息展示用）
 function escapeHtmlText(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+// 反转义 HTML（Mermaid 源码在 pre 里是转义的）
+function decodeHtmlText(s: string): string {
+  return s
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+}
+
+// PDF 导出：把 HTML 中的 Mermaid 占位（pre 源码）替换为实际渲染的 SVG
+async function renderMermaidForExport(html: string): Promise<string> {
+  if (!mermaidApi) return html
+  const regex = /<div class="mermaid-container" data-mermaid-id="([^"]+)"[^>]*><pre class="mermaid">([\s\S]*?)<\/pre><\/div>/g
+  let out = html
+  let match: RegExpExecArray | null
+  while ((match = regex.exec(html)) !== null) {
+    const [, id, escapedContent] = match
+    try {
+      const { svg } = await mermaidApi.render(id, decodeHtmlText(escapedContent))
+      out = out.replace(match[0], `<div class="mermaid-container">${svg}</div>`)
+    } catch (err) {
+      console.error('[mermaid] PDF 导出渲染失败:', err)
+    }
+  }
+  return out
 }
 </script>
 

@@ -134,12 +134,28 @@ defineExpose({
 
 .editor-container :deep(.cm-gutters) {
   border-right: 1px solid var(--border-color);
-  background: var(--bg-tertiary);
+  background: var(--bg-primary);
   color: var(--text-tertiary);
 }
 
+.editor-container :deep(.cm-lineNumbers .cm-gutterElement) {
+  font-size: 12px;
+  line-height: 1.7;
+  padding-left: 10px;
+  padding-right: 14px;
+  opacity: 0.85;
+  transition: opacity 0.2s ease;
+}
+
+.editor-container :deep(.cm-lineNumbers .cm-gutterElement:hover) {
+  opacity: 1;
+  color: var(--accent-color);
+}
+
 .editor-container :deep(.cm-activeLineGutter) {
-  background: var(--bg-tertiary);
+  background: var(--bg-secondary);
+  opacity: 1;
+  color: var(--accent-color) !important;
 }
 
 .editor-container :deep(.cm-activeLine) {

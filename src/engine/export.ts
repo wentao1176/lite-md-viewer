@@ -1,6 +1,61 @@
 // 导出引擎：将渲染后的 Markdown HTML 组装为独立可打印/可分发的完整 HTML
 import katexCss from 'katex/dist/katex.min.css?inline'
 
+// KaTeX 字体：全部内联为 base64 data URI，保证导出 PDF 中公式字体正确渲染
+// （?inline 让 Vite 返回 data: URL）
+import kfAms from 'katex/dist/fonts/KaTeX_AMS-Regular.woff2?inline'
+import kfCalB from 'katex/dist/fonts/KaTeX_Caligraphic-Bold.woff2?inline'
+import kfCalR from 'katex/dist/fonts/KaTeX_Caligraphic-Regular.woff2?inline'
+import kfFraB from 'katex/dist/fonts/KaTeX_Fraktur-Bold.woff2?inline'
+import kfFraR from 'katex/dist/fonts/KaTeX_Fraktur-Regular.woff2?inline'
+import kfMainB from 'katex/dist/fonts/KaTeX_Main-Bold.woff2?inline'
+import kfMainBI from 'katex/dist/fonts/KaTeX_Main-BoldItalic.woff2?inline'
+import kfMainI from 'katex/dist/fonts/KaTeX_Main-Italic.woff2?inline'
+import kfMainR from 'katex/dist/fonts/KaTeX_Main-Regular.woff2?inline'
+import kfMathBI from 'katex/dist/fonts/KaTeX_Math-BoldItalic.woff2?inline'
+import kfMathI from 'katex/dist/fonts/KaTeX_Math-Italic.woff2?inline'
+import kfSansB from 'katex/dist/fonts/KaTeX_SansSerif-Bold.woff2?inline'
+import kfSansI from 'katex/dist/fonts/KaTeX_SansSerif-Italic.woff2?inline'
+import kfSansR from 'katex/dist/fonts/KaTeX_SansSerif-Regular.woff2?inline'
+import kfScrpR from 'katex/dist/fonts/KaTeX_Script-Regular.woff2?inline'
+import kfSize1 from 'katex/dist/fonts/KaTeX_Size1-Regular.woff2?inline'
+import kfSize2 from 'katex/dist/fonts/KaTeX_Size2-Regular.woff2?inline'
+import kfSize3 from 'katex/dist/fonts/KaTeX_Size3-Regular.woff2?inline'
+import kfSize4 from 'katex/dist/fonts/KaTeX_Size4-Regular.woff2?inline'
+import kfTypeR from 'katex/dist/fonts/KaTeX_Typewriter-Regular.woff2?inline'
+
+const KATEX_FONTS: Array<[string, string]> = [
+  ['KaTeX_AMS-Regular.woff2', kfAms],
+  ['KaTeX_Caligraphic-Bold.woff2', kfCalB],
+  ['KaTeX_Caligraphic-Regular.woff2', kfCalR],
+  ['KaTeX_Fraktur-Bold.woff2', kfFraB],
+  ['KaTeX_Fraktur-Regular.woff2', kfFraR],
+  ['KaTeX_Main-Bold.woff2', kfMainB],
+  ['KaTeX_Main-BoldItalic.woff2', kfMainBI],
+  ['KaTeX_Main-Italic.woff2', kfMainI],
+  ['KaTeX_Main-Regular.woff2', kfMainR],
+  ['KaTeX_Math-BoldItalic.woff2', kfMathBI],
+  ['KaTeX_Math-Italic.woff2', kfMathI],
+  ['KaTeX_SansSerif-Bold.woff2', kfSansB],
+  ['KaTeX_SansSerif-Italic.woff2', kfSansI],
+  ['KaTeX_SansSerif-Regular.woff2', kfSansR],
+  ['KaTeX_Script-Regular.woff2', kfScrpR],
+  ['KaTeX_Size1-Regular.woff2', kfSize1],
+  ['KaTeX_Size2-Regular.woff2', kfSize2],
+  ['KaTeX_Size3-Regular.woff2', kfSize3],
+  ['KaTeX_Size4-Regular.woff2', kfSize4],
+  ['KaTeX_Typewriter-Regular.woff2', kfTypeR]
+]
+
+// 把 katex.min.css 里的相对字体路径替换为内联 data URI
+function inlineKatexFonts(css: string): string {
+  let out = css
+  for (const [file, uri] of KATEX_FONTS) {
+    out = out.split(`fonts/${file}`).join(uri)
+  }
+  return out
+}
+
 export type ExportTheme = 'light' | 'dark'
 
 // 与 App.vue 全局 CSS 变量保持一致的导出主题
@@ -245,7 +300,7 @@ export function buildExportHtml(
   markdownHtml: string,
   theme: ExportTheme,
   title?: string,
-  options: { mermaidDark?: boolean; bg?: 'white' | 'cream' } = {}
+  options: { mermaidDark?: boolean; bg?: 'white' | 'cream'; fontFamily?: string } = {}
 ): string {
   const docTitle = title || 'lite-md-viewer 导出文档'
   const mermaidFix = options.mermaidDark
@@ -273,6 +328,14 @@ export function buildExportHtml(
   }`
       : ``
 
+  // 跟随预览选择的字体
+  const fontFix = options.fontFamily
+    ? `
+  html, body, .markdown-body {
+    font-family: ${options.fontFamily};
+  }`
+    : ``
+
   return `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -287,7 +350,8 @@ export function buildExportHtml(
 ${bgFix}
 ${MARKDOWN_CSS}
 ${mermaidFix}
-${katexCss}
+${fontFix}
+${inlineKatexFonts(katexCss)}
 </style>
 </head>
 <body>
