@@ -98,10 +98,7 @@ const MARKDOWN_CSS = `
     line-height: 1.8;
   }
 
-  /* 打印边距由 printToPDF 参数控制（Chromium 打印 API 边距优先于此处默认值） */
-  @page {
-    margin: 0;
-  }
+  /* 打印边距由 printToPDF API 参数控制（删除 @page margin，避免 CSS 覆盖 API 边距） */
 
   .markdown-body {
     max-width: none;

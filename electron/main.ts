@@ -305,12 +305,12 @@ async function exportPdfToPath(filePath: string, html: string, opts: { pageNumbe
     const pdfData = await printWin.webContents.printToPDF({
       printBackground: true,
       pageSize: 'A4',
-      // 打印边距：上下留出空间（底部 0.6in 给页码），左右适度；背景在内容区铺满，页边纸白自然
+      // 打印边距：上下明显留白（底部 0.8in 给页码充足空间），左右 0.55in
       margins: {
-        top: 0.4,
-        bottom: 0.6,
-        left: 0.45,
-        right: 0.45
+        top: 0.55,
+        bottom: 0.8,
+        left: 0.55,
+        right: 0.55
       },
       preferCSSPageSize: false
     })
