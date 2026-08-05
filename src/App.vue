@@ -660,13 +660,13 @@ async function renderKatexAsImages(html: string): Promise<string> {
 
   let out = html
 
-  // 块级公式 → 高清大图（行内公式保留 HTML 文字，可选中复制）
+  // 块级公式 → 高清大图（按公式原始尺寸显示，保持与正文协调；行内公式保留 HTML 文字）
   for (const m of blocks) {
     try {
-      const dataUrl = await formulaToPng(m[1], html2canvas, katexImgContainer)
+      const { dataUrl, width } = await formulaToPng(m[1], html2canvas, katexImgContainer)
       out = out.replace(
         m[0],
-        `<div class="katex-block"><img class="katex-pdf-img" src="${dataUrl}" alt="数学公式" /></div>`
+        `<div class="katex-block"><img class="katex-pdf-img" src="${dataUrl}" style="width:${Math.round(width)}px" alt="数学公式" /></div>`
       )
     } catch (err) {
       console.error('[katex] PDF 块级公式转图片失败:', err)
@@ -677,7 +677,12 @@ async function renderKatexAsImages(html: string): Promise<string> {
 }
 
 // 单个公式 HTML → 透明 PNG data URL（4 倍高清，强制深色文字适配白底纸张）
-async function formulaToPng(formulaHtml: string, html2canvas: any, container: HTMLDivElement): Promise<string> {
+// 返回图片 dataUrl + 公式原始 CSS 尺寸（用于按原尺寸显示，避免 4x 像素导致图片过大）
+async function formulaToPng(
+  formulaHtml: string,
+  html2canvas: any,
+  container: HTMLDivElement
+): Promise<{ dataUrl: string; width: number; height: number }> {
   container.innerHTML = formulaHtml
   // 强制公式文字深色（页面可能处于浅色主题，保证图片在 PDF 白底上清晰）
   container.querySelectorAll('*').forEach((el) => {
@@ -686,6 +691,9 @@ async function formulaToPng(formulaHtml: string, html2canvas: any, container: HT
   })
   await document.fonts?.ready?.catch(() => {})
   await new Promise((r) => setTimeout(r, 50))
+  // 记录公式原始 CSS 尺寸（html2canvas 输出为 scale 倍像素）
+  const width = container.clientWidth || 200
+  const height = container.clientHeight || 40
   const canvas = await html2canvas(container, {
     backgroundColor: null,
     scale: 4,
@@ -694,7 +702,7 @@ async function formulaToPng(formulaHtml: string, html2canvas: any, container: HT
   })
   const dataUrl = canvas.toDataURL('image/png')
   container.innerHTML = ''
-  return dataUrl
+  return { dataUrl, width, height }
 }
 </script>
 
