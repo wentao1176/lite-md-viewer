@@ -9,6 +9,7 @@ declare module '*.vue' {
 interface ElectronAPI {
   openFile: () => Promise<void>
   readFile: (path: string) => Promise<{ success: boolean; content?: string; error?: string }>
+  readImage: (path: string) => Promise<{ success: boolean; dataUrl?: string; error?: string }>
   saveFile: (path: string, content: string) => Promise<{ success: boolean; error?: string }>
   saveFileAs: (content: string) => Promise<{ success: boolean; path?: string; error?: string }>
   exportHtml: (html: string) => Promise<{ success: boolean; path?: string; error?: string }>

@@ -18,6 +18,7 @@ export type UpdaterEvent =
 export interface ElectronAPI {
   openFile: () => Promise<void>
   readFile: (path: string) => Promise<{ success: boolean; content?: string; error?: string }>
+  readImage: (path: string) => Promise<{ success: boolean; dataUrl?: string; error?: string }>
   saveFile: (path: string, content: string) => Promise<{ success: boolean; error?: string }>
   saveFileAs: (content: string) => Promise<{ success: boolean; path?: string; error?: string }>
   exportHtml: (html: string) => Promise<ExportResult>
@@ -39,6 +40,7 @@ export interface ElectronAPI {
 const api: ElectronAPI = {
   openFile: () => ipcRenderer.invoke('file:open'),
   readFile: (path: string) => ipcRenderer.invoke('file:read', path),
+  readImage: (path: string) => ipcRenderer.invoke('file:read-image', path),
   saveFile: (path: string, content: string) => ipcRenderer.invoke('file:save', path, content),
   saveFileAs: (content: string) => ipcRenderer.invoke('file:save-as', content),
   exportHtml: (html: string) => ipcRenderer.invoke('export:html', html),

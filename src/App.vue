@@ -330,6 +330,8 @@ async function exportDocument(kind: 'html' | 'pdf', bg: 'white' | 'cream' = 'cre
 
     // 等待渲染完成（公式走 KaTeX HTML，PDF 阶段再转 PNG 图片）
     let html = await renderer.render(sourceContent.value)
+    // 相对路径图片 → data URL（预览缓存里已有则直接用）
+    html = await resolveRelativeImages(html)
 
     if (kind === 'pdf' && wasDark) {
       renderer.setTheme('dark')
@@ -398,12 +400,60 @@ function debouncedRender() {
 async function renderContent() {
   try {
     const html = await renderer.render(sourceContent.value)
-    renderedHtml.value = html
+    renderedHtml.value = await resolveRelativeImages(html)
     tocItems.value = renderer.extractToc(sourceContent.value)
   } catch (err) {
     console.error('Render error:', err)
     renderedHtml.value = '<p class="render-error">渲染失败，请检查 Markdown 语法</p>'
   }
+}
+
+// 相对路径图片 → data URL（基于当前 md 文件目录；带缓存避免每次重读）
+const imageCache = new Map<string, string>()
+async function resolveRelativeImages(html: string): Promise<string> {
+  if (!window.electronAPI || !currentFilePath.value) return html
+  const baseDir = currentFilePath.value.replace(/[\\/][^\\/]*$/, '')
+  // 匹配 <img src="...">（排除 http/data/blob/file 开头的绝对引用）
+  const regex = /(<img[^>]+src=")([^"]+)(")/g
+  let out = html
+  let match: RegExpExecArray | null
+  while ((match = regex.exec(html)) !== null) {
+    const [, prefix, src, suffix] = match
+    if (/^(https?:|data:|blob:|file:)/.test(src)) continue
+    if (src.startsWith('/') || src.startsWith('\\')) continue
+    // 拼接绝对路径（处理 ../ 等）
+    const absPath = joinPath(baseDir, src)
+    const cached = imageCache.get(absPath)
+    if (cached) {
+      out = out.replace(match[0], `${prefix}${cached}${suffix}`)
+      continue
+    }
+    try {
+      const result = await window.electronAPI.readImage(absPath)
+      if (result.success && result.dataUrl) {
+        imageCache.set(absPath, result.dataUrl)
+        out = out.replace(match[0], `${prefix}${result.dataUrl}${suffix}`)
+      }
+    } catch (err) {
+      console.error('[image] 读取失败:', absPath, err)
+    }
+  }
+  return out
+}
+
+// 路径拼接（渲染进程无 node path，用字符串处理 ../ 和 .\）
+function joinPath(base: string, rel: string): string {
+  const parts = (base + '/' + rel).split(/[\\/]+/)
+  const stack: string[] = []
+  for (const p of parts) {
+    if (p === '' || p === '.') continue
+    if (p === '..') {
+      stack.pop()
+    } else {
+      stack.push(p)
+    }
+  }
+  return stack.join('/')
 }
 
 function updateRenderer() {

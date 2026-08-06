@@ -218,6 +218,29 @@ ipcMain.handle('file:read', async (_event, filePath: string) => {
   }
 })
 
+// 读取图片 → data URL（相对路径图片基于 md 文件目录解析后转 base64，预览/导出都可用）
+ipcMain.handle('file:read-image', async (_event, filePath: string) => {
+  try {
+    const ext = filePath.split('.').pop()?.toLowerCase() || ''
+    const mimeMap: Record<string, string> = {
+      png: 'image/png',
+      jpg: 'image/jpeg',
+      jpeg: 'image/jpeg',
+      gif: 'image/gif',
+      webp: 'image/webp',
+      svg: 'image/svg+xml',
+      bmp: 'image/bmp',
+      ico: 'image/x-icon'
+    }
+    const mime = mimeMap[ext] || 'application/octet-stream'
+    const data = await readFile(filePath)
+    const b64 = data.toString('base64')
+    return { success: true, dataUrl: `data:${mime};base64,${b64}` }
+  } catch (err: any) {
+    return { success: false, error: err.message }
+  }
+})
+
 ipcMain.handle('file:save', async (_event, filePath: string, content: string) => {
   try {
     await writeFile(filePath, content, 'utf-8')
