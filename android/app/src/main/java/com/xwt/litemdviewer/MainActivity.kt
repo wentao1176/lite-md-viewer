@@ -90,15 +90,37 @@ class MainActivity : ComponentActivity() {
     private fun loadUri(uri: Uri) {
         try {
             currentFileName = queryDisplayName(uri) ?: "文档"
+            val mdDir = resolveContentPath(uri)?.substringBeforeLast('/')
             lifecycleScope.launch {
                 val text = withContext(Dispatchers.IO) {
                     contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
                 }
-                markdownContent = text ?: ""
+                markdownContent = MarkdownRenderer.resolveRelativeImages(text ?: "", mdDir)
                 if (text == null) toast("读取文件失败")
             }
         } catch (e: Exception) {
             toast("打开失败: ${e.message}")
+        }
+    }
+
+    /** 把文件 Uri 解析为真实路径（file:// 或外部存储 documents），拿不到返回 null */
+    private fun resolveContentPath(uri: Uri): String? {
+        return try {
+            when {
+                uri.scheme == "file" -> uri.path
+                uri.authority == "com.android.externalstorage.documents" -> {
+                    val docId = uri.lastPathSegment ?: return null
+                    val idx = docId.indexOf(':')
+                    if (idx < 0) return null
+                    val root = docId.substring(0, idx)
+                    val path = docId.substring(idx + 1)
+                    val base = if (root == "primary") "/storage/emulated/0" else "/storage/$root"
+                    "$base/$path"
+                }
+                else -> null
+            }
+        } catch (e: Exception) {
+            null
         }
     }
 

@@ -12,13 +12,15 @@ android {
         applicationId = "com.xwt.litemdviewer"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "1.1.1"
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
+            // 用 debug 签名（CI 无签名环境也可产出可安装 APK）
+            signingConfig = signingConfigs.getByName("debug")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

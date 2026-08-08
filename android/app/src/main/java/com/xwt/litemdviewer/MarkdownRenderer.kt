@@ -1,6 +1,7 @@
 package com.xwt.litemdviewer
 
 import android.content.Context
+import android.util.Base64
 import io.noties.markwon.Markwon
 import io.noties.markwon.ext.latex.JLatexMathPlugin
 import io.noties.markwon.ext.strikethrough.StrikethroughPlugin
@@ -11,6 +12,7 @@ import org.commonmark.ext.gfm.strikethrough.StrikethroughExtension
 import org.commonmark.ext.gfm.tables.TablesExtension
 import org.commonmark.parser.Parser
 import org.commonmark.renderer.html.HtmlRenderer
+import java.io.File
 
 /**
  * Markdown 渲染器：
@@ -32,7 +34,7 @@ object MarkdownRenderer {
             .usePlugin(StrikethroughPlugin.create())                          // 删除线
             .usePlugin(TablePlugin.create(context))                               // 表格
             .usePlugin(TaskListPlugin.create(context))                        // 任务列表
-            .usePlugin(ImagesPlugin.create())                                 // 图片
+            .usePlugin(ImagesPlugin.create())                                 // 图片（默认支持 data:/file:/http: scheme）
             .usePlugin(JLatexMathPlugin.create(1.0f))                         // LaTeX 公式
             .build()
 
@@ -42,8 +44,7 @@ object MarkdownRenderer {
     }
 
     /** 渲染为完整 HTML 文档（用于导出 PDF），带主题内联样式 */
-    fun renderToHtml(markdown: String, dark: Boolean): String {
-        val extensions = listOf(
+    fun renderToHtml(markdown: String, dark: Boolean): String {        val extensions = listOf(
             TablesExtension.create(),
             StrikethroughExtension.create()
         )
@@ -59,6 +60,46 @@ object MarkdownRenderer {
             append("<style>$css</style></head><body><article class=\"markdown-body\">")
             append(body)
             append("</article></body></html>")
+        }
+    }
+
+    /** 相对路径图片 → data URI（基于 md 文件所在目录解析；预览与导出共用） */
+    fun resolveRelativeImages(markdown: String, mdDir: String?): String {
+        if (mdDir.isNullOrBlank()) return markdown
+        val regex = Regex("""!\[([^\]]*)\]\(([^)]+)\)""")
+        return regex.replace(markdown) { m ->
+            val alt = m.groupValues[1]
+            val src = m.groupValues[2].trim()
+            if (src.startsWith("http://") || src.startsWith("https://") ||
+                src.startsWith("data:") || src.startsWith("file://") && !File(src.removePrefix("file://")).isAbsolute
+            ) {
+                m.value
+            } else {
+                val file = File(mdDir, src.removePrefix("file://"))
+                if (file.isFile) {
+                    try {
+                        val bytes = file.readBytes()
+                        val mime = when (file.extension.lowercase()) {
+                            "png" -> "image/png"
+                            "jpg", "jpeg" -> "image/jpeg"
+                            "gif" -> "image/gif"
+                            "webp" -> "image/webp"
+                            "bmp" -> "image/bmp"
+                            else -> null // svg 等 BitmapFactory 不支持的保持原样
+                        }
+                        if (mime != null) {
+                            val b64 = Base64.encodeToString(bytes, Base64.DEFAULT)
+                            "![$alt](data:$mime;base64,$b64)"
+                        } else {
+                            m.value
+                        }
+                    } catch (e: Exception) {
+                        m.value
+                    }
+                } else {
+                    m.value
+                }
+            }
         }
     }
 
