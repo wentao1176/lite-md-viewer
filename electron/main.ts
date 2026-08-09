@@ -10,6 +10,10 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 
 let mainWindow: BrowserWindow | null = null
 
+// 未保存状态跟踪（渲染进程通过 IPC 上报；关闭窗口时提醒）
+let appIsDirty = false
+let forceClose = false
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -34,6 +38,30 @@ function createWindow() {
   } else {
     mainWindow.loadFile(join(__dirname, '../dist/index.html'))
   }
+
+  // 关闭窗口时：有未保存修改 → 询问保存/不保存/取消
+  mainWindow.on('close', (e) => {
+    if (forceClose || !appIsDirty) return
+    e.preventDefault()
+    void (async () => {
+      const { response } = await dialog.showMessageBox(mainWindow!, {
+        type: 'warning',
+        buttons: ['保存', '不保存', '取消'],
+        defaultId: 0,
+        cancelId: 2,
+        message: '有未保存的修改',
+        detail: '是否先保存当前文档再退出？'
+      })
+      if (response === 0) {
+        // 让渲染进程执行保存，保存成功后通过 app:save-complete 回来关闭
+        mainWindow?.webContents.send('app:save-before-close')
+      } else if (response === 1) {
+        forceClose = true
+        mainWindow?.close()
+      }
+      // response === 2（取消）：什么都不做，窗口保持打开
+    })()
+  })
 
   mainWindow.on('closed', () => {
     mainWindow = null
@@ -241,8 +269,18 @@ ipcMain.handle('file:read-image', async (_event, filePath: string) => {
   }
 })
 
-ipcMain.handle('file:save', async (_event, filePath: string, content: string) => {
-  try {
+// 未保存状态上报（渲染进程）
+ipcMain.on('app:set-dirty', (_event, dirty: boolean) => {
+  appIsDirty = dirty
+})
+
+// 关闭前保存完成 → 真正关闭窗口
+ipcMain.on('app:save-complete', () => {
+  forceClose = true
+  mainWindow?.close()
+})
+
+ipcMain.handle('file:save', async (_event, filePath: string, content: string) => {  try {
     await writeFile(filePath, content, 'utf-8')
     return { success: true }
   } catch (err: any) {

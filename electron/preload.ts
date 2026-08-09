@@ -26,6 +26,9 @@ export interface ElectronAPI {
   getAppVersion: () => Promise<string>
   onFileLoaded: (callback: (data: { path: string; content: string }) => void) => void
   onMenuSave: (callback: () => void) => void
+  setDirty: (dirty: boolean) => void
+  onSaveBeforeClose: (callback: () => void) => void
+  notifySaveComplete: () => void
   onMenuExportHtml: (callback: () => void) => void
   onMenuExportPdf: (callback: () => void) => void
   onMenuToggleTheme: (callback: () => void) => void
@@ -52,6 +55,15 @@ const api: ElectronAPI = {
   },
   onMenuSave: (callback) => {
     ipcRenderer.on('menu:save', () => callback())
+  },
+  setDirty: (dirty) => {
+    ipcRenderer.send('app:set-dirty', dirty)
+  },
+  onSaveBeforeClose: (callback) => {
+    ipcRenderer.on('app:save-before-close', () => callback())
+  },
+  notifySaveComplete: () => {
+    ipcRenderer.send('app:save-complete')
   },
   onMenuExportHtml: (callback) => {
     ipcRenderer.on('menu:export-html', () => callback())

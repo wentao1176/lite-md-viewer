@@ -17,6 +17,9 @@ interface ElectronAPI {
   getAppVersion: () => Promise<string>
   onFileLoaded: (callback: (data: { path: string; content: string }) => void) => void
   onMenuSave: (callback: () => void) => void
+  setDirty: (dirty: boolean) => void
+  onSaveBeforeClose: (callback: () => void) => void
+  notifySaveComplete: () => void
   onMenuExportHtml: (callback: () => void) => void
   onMenuExportPdf: (callback: () => void) => void
   onMenuToggleTheme: (callback: () => void) => void

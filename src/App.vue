@@ -40,12 +40,20 @@
       <Sidebar
         v-if="showToc && !previewFullscreen"
         :toc-items="tocItems"
+        :width="tocWidth"
         @navigate="handleTocNavigate"
       />
+      <div
+        v-if="showToc && !previewFullscreen"
+        class="toc-divider"
+        @mousedown="startTocResize"
+      ></div>
       <div v-if="!previewFullscreen" class="editor-pane" :style="{ flex: editorRatio }">
         <div class="pane-header">
           <span>Markdown 源码</span>
-          <span class="pane-hint" v-if="currentFilePath">{{ currentFilePath }}</span>
+          <span class="pane-hint" v-if="currentFilePath">
+            {{ currentFilePath }}<em v-if="isDirty" class="dirty-mark">(未保存)</em>
+          </span>
         </div>
         <Editor
           ref="editorRef"
@@ -87,10 +95,13 @@ const showToc = ref(true)
 const sourceContent = ref(DEFAULT_CONTENT)
 const renderedHtml = ref('')
 const currentFilePath = ref('')
+const isDirty = ref(false) // 是否有未保存修改
 const tocItems = ref<Array<{ level: number; text: string; id: string }>>([])
 
 const editorRatio = ref(1)
 const previewRatio = ref(1)
+// 目录（TOC）宽度，可拖动调整，持久化
+const tocWidth = ref(Number(localStorage.getItem('wtmd-toc-width')) || 200)
 let renderer: MarkdownRenderer
 
 // 更新通知状态（铃铛面板）
@@ -311,7 +322,9 @@ async function handleSaveFile() {
   // 已有文件路径 → 直接写回原文件（不弹框）；否则弹"另存为"
   if (currentFilePath.value) {
     const result = await window.electronAPI.saveFile(currentFilePath.value, sourceContent.value)
-    if (!result.success) {
+    if (result.success) {
+      isDirty.value = false
+    } else {
       // 原路径失效（文件被移动/删除）→ 退回另存为
       await saveFileAs()
     }
@@ -324,6 +337,7 @@ async function saveFileAs() {
   const result = await window.electronAPI.saveFileAs(sourceContent.value)
   if (result.success && result.path) {
     currentFilePath.value = result.path
+    isDirty.value = false
   }
 }
 
@@ -401,6 +415,7 @@ function showToast(message: string, isError = false) {
 
 function handleContentChange(newContent: string) {
   sourceContent.value = newContent
+  isDirty.value = true
   debouncedRender()
 }
 
@@ -495,6 +510,32 @@ function startResize(e: MouseEvent) {
   document.addEventListener('mousemove', onMove)
   document.addEventListener('mouseup', onUp)
 }
+
+// 目录宽度拖动调整（120-420px，持久化到 localStorage）
+function startTocResize(e: MouseEvent) {
+  e.preventDefault()
+  const startX = e.clientX
+  const startWidth = tocWidth.value
+
+  function onMove(ev: MouseEvent) {
+    const w = Math.min(420, Math.max(120, startWidth + (ev.clientX - startX)))
+    tocWidth.value = w
+  }
+
+  function onUp() {
+    document.removeEventListener('mousemove', onMove)
+    document.removeEventListener('mouseup', onUp)
+    localStorage.setItem('wtmd-toc-width', String(tocWidth.value))
+  }
+
+  document.addEventListener('mousemove', onMove)
+  document.addEventListener('mouseup', onUp)
+}
+
+// 未保存状态同步给主进程（关闭窗口提醒用）
+watch(isDirty, (dirty) => {
+  window.electronAPI?.setDirty?.(dirty)
+})
 
 function handleTocNavigate(id: string) {
   // 在预览区滚动到对应标题
@@ -620,6 +661,7 @@ onMounted(async () => {
     window.electronAPI.onFileLoaded((data) => {
       sourceContent.value = data.content
       currentFilePath.value = data.path
+      isDirty.value = false
       renderContent()
     })
     window.electronAPI.onMenuSave(() => handleSaveFile())
@@ -627,6 +669,11 @@ onMounted(async () => {
     window.electronAPI.onMenuExportPdf(() => exportDocument('pdf'))
     window.electronAPI.onMenuToggleTheme(() => toggleTheme())
     window.electronAPI.onMenuToggleToc(() => toggleToc())
+    // 关闭窗口前询问保存 → 保存成功后通知主进程真正关闭
+    window.electronAPI.onSaveBeforeClose(async () => {
+      await handleSaveFile()
+      window.electronAPI.notifySaveComplete()
+    })
 
     // 更新事件 → 铃铛通知
     window.electronAPI.onUpdaterEvent((event: any) => {
@@ -648,6 +695,7 @@ onMounted(async () => {
       const text = await file.text()
       sourceContent.value = text
       currentFilePath.value = file.name
+      isDirty.value = false
       renderContent()
     }
   })
@@ -985,6 +1033,39 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* 未保存标记 */
+.dirty-mark {
+  font-style: normal;
+  color: var(--accent-color);
+  margin-left: 6px;
+  font-weight: 500;
+}
+
+/* 目录宽度拖拽手柄 */
+.toc-divider {
+  width: 8px;
+  background: var(--bg-secondary);
+  cursor: col-resize;
+  flex-shrink: 0;
+  position: relative;
+}
+.toc-divider::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--border-color);
+  transform: translateX(-50%);
+}
+.toc-divider:hover {
+  background: var(--bg-tertiary);
+}
+.toc-divider:hover::before {
+  background: var(--accent-color);
 }
 
 .divider {

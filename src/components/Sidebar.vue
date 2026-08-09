@@ -1,5 +1,5 @@
 <template>
-  <div class="sidebar">
+  <div class="sidebar" :style="width ? { width: width + 'px', minWidth: width + 'px' } : {}">
     <div class="sidebar-header">
       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <line x1="8" y1="6" x2="21" y2="6" />
@@ -33,6 +33,7 @@
 <script setup lang="ts">
 defineProps<{
   tocItems: Array<{ level: number; text: string; id: string }>
+  width?: number
 }>()
 
 defineEmits<{
