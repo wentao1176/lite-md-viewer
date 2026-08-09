@@ -1,6 +1,7 @@
 <template>
   <div class="app-wrapper" :class="[`theme-${theme}`, { 'toc-visible': showToc }]" :style="fontFamily ? { '--md-font': fontFamily } : {}">
     <Toolbar
+      v-if="!toolbarCollapsed"
       :file-path="currentFilePath"
       :theme="theme"
       :show-toc="showToc"
@@ -19,6 +20,7 @@
       @zoom-in="zoomIn"
       @zoom-out="zoomOut"
       @zoom-reset="zoomReset"
+      @toggle-collapse="toolbarCollapsed = true"
     >
       <!-- 通知铃铛（放进工具栏，随布局流动，避免与导出按钮重叠） -->
       <template #right>
@@ -30,6 +32,17 @@
         />
       </template>
     </Toolbar>
+    <!-- 工具栏收起后的展开条 -->
+    <div
+      v-else
+      class="toolbar-collapsed-bar"
+      @click="toolbarCollapsed = false"
+      title="展开工具栏"
+    >
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M6 9l6 6 6-6" />
+      </svg>
+    </div>
     <!-- 导出对话框 -->
     <ExportDialog
       v-if="exportDialogOpen"
@@ -102,6 +115,8 @@ const editorRatio = ref(1)
 const previewRatio = ref(1)
 // 目录（TOC）宽度，可拖动调整，持久化
 const tocWidth = ref(Number(localStorage.getItem('wtmd-toc-width')) || 200)
+// 工具栏收起状态（持久化）
+const toolbarCollapsed = ref(localStorage.getItem('wtmd-toolbar-collapsed') === '1')
 let renderer: MarkdownRenderer
 
 // 更新通知状态（铃铛面板）
@@ -535,6 +550,11 @@ function startTocResize(e: MouseEvent) {
 // 未保存状态同步给主进程（关闭窗口提醒用）
 watch(isDirty, (dirty) => {
   window.electronAPI?.setDirty?.(dirty)
+})
+
+// 工具栏收起状态持久化
+watch(toolbarCollapsed, (collapsed) => {
+  localStorage.setItem('wtmd-toolbar-collapsed', collapsed ? '1' : '0')
 })
 
 function handleTocNavigate(id: string) {
@@ -1066,6 +1086,24 @@ body {
 }
 .toc-divider:hover::before {
   background: var(--accent-color);
+}
+
+/* 工具栏收起后的展开条 */
+.toolbar-collapsed-bar {
+  height: 22px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-tertiary);
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.toolbar-collapsed-bar:hover {
+  background: var(--bg-tertiary);
+  color: var(--accent-color);
 }
 
 .divider {

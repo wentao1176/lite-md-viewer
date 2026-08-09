@@ -105,6 +105,15 @@
         导出
       </button>
       <slot name="right" />
+      <button
+        class="toolbar-btn icon-btn"
+        @click="$emit('toggle-collapse')"
+        title="收起工具栏"
+      >
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 15l-6-6-6 6" />
+        </svg>
+      </button>
     </div>
   </div>
 </template>
@@ -132,6 +141,7 @@ const emit = defineEmits<{
   'zoom-in': []
   'zoom-out': []
   'zoom-reset': []
+  'toggle-collapse': []
 }>()
 
 // 常用预览字体（正文）：英文字体优先 + 中文字体配对，保证英文显示美观
