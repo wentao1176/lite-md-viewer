@@ -47,8 +47,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   android:
-    needs: build
-    if: github.ref_type == 'tag'
+    if: startsWith(github.ref_name, 'android-')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
