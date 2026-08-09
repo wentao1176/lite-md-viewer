@@ -63,10 +63,9 @@
       ></div>
       <div v-if="!previewFullscreen" class="editor-pane" :style="{ flex: editorRatio }">
         <div class="pane-header">
+          <em v-if="isDirty" class="dirty-mark">(未保存)</em>
           <span>Markdown 源码</span>
-          <span class="pane-hint" v-if="currentFilePath">
-            {{ currentFilePath }}<em v-if="isDirty" class="dirty-mark">(未保存)</em>
-          </span>
+          <span class="pane-hint" v-if="currentFilePath">{{ currentFilePath }}</span>
         </div>
         <Editor
           ref="editorRef"
