@@ -297,12 +297,7 @@ async function handleOpenFile() {
 }
 
 async function handleSaveFile() {
-  if (window.electronAPI) {
-    const result = await window.electronAPI.saveFileAs(sourceContent.value)
-    if (result.success && result.path) {
-      currentFilePath.value = result.path
-    }
-  } else {
+  if (!window.electronAPI) {
     // 浏览器 fallback
     const blob = new Blob([sourceContent.value], { type: 'text/markdown' })
     const url = URL.createObjectURL(blob)
@@ -311,6 +306,24 @@ async function handleSaveFile() {
     a.download = currentFilePath.value || 'document.md'
     a.click()
     URL.revokeObjectURL(url)
+    return
+  }
+  // 已有文件路径 → 直接写回原文件（不弹框）；否则弹"另存为"
+  if (currentFilePath.value) {
+    const result = await window.electronAPI.saveFile(currentFilePath.value, sourceContent.value)
+    if (!result.success) {
+      // 原路径失效（文件被移动/删除）→ 退回另存为
+      await saveFileAs()
+    }
+  } else {
+    await saveFileAs()
+  }
+}
+
+async function saveFileAs() {
+  const result = await window.electronAPI.saveFileAs(sourceContent.value)
+  if (result.success && result.path) {
+    currentFilePath.value = result.path
   }
 }
 
