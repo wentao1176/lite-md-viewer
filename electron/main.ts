@@ -4,6 +4,7 @@ import { fileURLToPath } from 'url'
 import { readFile, writeFile } from 'fs/promises'
 import { autoUpdater } from 'electron-updater'
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
+import { createPdfHtmlFile } from './pdf-html-file'
 
 // ESM 环境没有 __dirname，需要手动计算
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -342,6 +343,7 @@ ipcMain.handle('export:pdf', async (_event, html: string, opts: { pageNumbers?: 
 })
 
 async function exportPdfToPath(filePath: string, html: string, opts: { pageNumbers?: boolean }) {
+  let temporaryHtmlFile: Awaited<ReturnType<typeof createPdfHtmlFile>> | null = null
 
   // A4 尺寸 @ 96dpi：210mm ≈ 794px，297mm ≈ 1123px
   const printWin = new BrowserWindow({
@@ -357,8 +359,8 @@ async function exportPdfToPath(filePath: string, html: string, opts: { pageNumbe
   })
 
   try {
-    const dataUrl = 'data:text/html;charset=utf-8,' + encodeURIComponent(html)
-    await printWin.loadURL(dataUrl)
+    temporaryHtmlFile = await createPdfHtmlFile(html)
+    await printWin.loadFile(temporaryHtmlFile.path)
     await new Promise<void>((resolve) => setTimeout(resolve, 300))
 
     const pdfData = await printWin.webContents.printToPDF({
@@ -384,6 +386,7 @@ async function exportPdfToPath(filePath: string, html: string, opts: { pageNumbe
     return { success: false, error: err.message }
   } finally {
     printWin.destroy()
+    await temporaryHtmlFile?.cleanup()
   }
 }
 
