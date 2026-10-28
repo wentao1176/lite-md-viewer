@@ -33,8 +33,17 @@
         </div>
       </div>
 
-      <!-- 背景（仅 PDF） -->
-      <div v-if="format === 'pdf'" class="dialog-section">
+      <div class="dialog-section">
+        <div class="section-label">文档风格</div>
+        <div class="option-row">
+          <button class="option-btn" :class="{ selected: style === 'standard' }" @click="style = 'standard'">常规阅读</button>
+          <button class="option-btn" :class="{ selected: style === 'homework' }" @click="style = 'homework'">黑白作业</button>
+        </div>
+        <div v-if="style === 'homework'" class="section-hint">白纸黑字，图片和图表转为灰度，适合作业打印</div>
+      </div>
+
+      <!-- 背景（仅常规 PDF） -->
+      <div v-if="format === 'pdf' && style === 'standard'" class="dialog-section">
         <div class="section-label">背景颜色</div>
         <div class="option-row">
           <button
@@ -79,18 +88,22 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import type { DocumentStyle } from '../engine/document-style'
+
+const props = defineProps<{ documentStyle: DocumentStyle }>()
 
 const emit = defineEmits<{
   close: []
-  confirm: [opts: { format: 'pdf' | 'html'; bg: 'white' | 'cream'; pageNumbers: boolean }]
+  confirm: [opts: { format: 'pdf' | 'html'; bg: 'white' | 'cream'; pageNumbers: boolean; documentStyle: DocumentStyle }]
 }>()
 
 const format = ref<'pdf' | 'html'>('pdf')
 const bg = ref<'white' | 'cream'>('cream')
 const pageNumbers = ref(false)
+const style = ref<DocumentStyle>(props.documentStyle)
 
 function doExport() {
-  emit('confirm', { format: format.value, bg: bg.value, pageNumbers: pageNumbers.value })
+  emit('confirm', { format: format.value, bg: style.value === 'homework' ? 'white' : bg.value, pageNumbers: pageNumbers.value, documentStyle: style.value })
 }
 </script>
 

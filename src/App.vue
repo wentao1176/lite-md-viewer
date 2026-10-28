@@ -8,6 +8,7 @@
       :preview-fullscreen="previewFullscreen"
       :font-family="fontFamily"
       :preview-zoom="previewZoom"
+      :document-style="documentStyle"
       @toggle-theme="toggleTheme"
       @toggle-toc="toggleToc"
       @open-file="handleOpenFile"
@@ -16,6 +17,7 @@
       @redo="handleRedo"
       @toggle-fullscreen="togglePreviewFullscreen"
       @font-change="handleFontChange"
+      @document-style-change="handleDocumentStyleChange"
       @open-export="exportDialogOpen = true"
       @zoom-in="zoomIn"
       @zoom-out="zoomOut"
@@ -46,6 +48,7 @@
     <!-- 导出对话框 -->
     <ExportDialog
       v-if="exportDialogOpen"
+      :document-style="documentStyle"
       @close="exportDialogOpen = false"
       @confirm="handleExportConfirm"
     />
@@ -84,6 +87,7 @@
           :html="renderedHtml"
           :theme="theme === 'dark' ? 'dark' : 'light'"
           :zoom="previewZoom"
+          :document-style="documentStyle"
           @element-click="handlePreviewClick"
         />
       </div>
@@ -99,12 +103,22 @@ import Preview from './components/Preview.vue'
 import Sidebar from './components/Sidebar.vue'
 import { getRenderer, type MarkdownRenderer } from './engine/renderer'
 import { buildExportHtml } from './engine/export'
+import { normalizeFontFamily } from './engine/fonts'
+import { replaceDisplayMathWithImages } from './engine/math-export'
+import { captureRenderedImageSources, resolveDocumentImages } from './engine/images'
+import { normalizeDocumentStyle, type DocumentStyle } from './engine/document-style'
 import NotificationBell, { type UpdaterState } from './components/NotificationBell.vue'
 import ExportDialog from './components/ExportDialog.vue'
 
 const theme = ref<'light' | 'dark' | 'white'>(loadTheme())
+const documentStyle = ref<DocumentStyle>(normalizeDocumentStyle(localStorage.getItem('wtmd-document-style')))
+function handleDocumentStyleChange(value: DocumentStyle) {
+  documentStyle.value = normalizeDocumentStyle(value)
+  localStorage.setItem('wtmd-document-style', documentStyle.value)
+  renderContent()
+}
 const showToc = ref(true)
-const sourceContent = ref(DEFAULT_CONTENT)
+const sourceContent = ref(defaultContent())
 const renderedHtml = ref('')
 const currentFilePath = ref('')
 const isDirty = ref(false) // 是否有未保存修改
@@ -163,9 +177,9 @@ window.addEventListener(
 
 // 导出对话框
 const exportDialogOpen = ref(false)
-function handleExportConfirm(opts: { format: 'pdf' | 'html'; bg: 'white' | 'cream'; pageNumbers: boolean }) {
+function handleExportConfirm(opts: { format: 'pdf' | 'html'; bg: 'white' | 'cream'; pageNumbers: boolean; documentStyle: DocumentStyle }) {
   exportDialogOpen.value = false
-  exportDocument(opts.format, opts.bg, opts.pageNumbers)
+  exportDocument(opts.format, opts.bg, opts.pageNumbers, opts.documentStyle)
 }
 
 // 撤销 / 重做（工具栏箭头按钮）
@@ -177,10 +191,10 @@ function handleRedo() {
 }
 
 // 预览字体（localStorage 持久化；v2 key 强制刷新为 Times 优先的新默认，避免旧 Georgia 值残留）
-const fontFamily = ref(localStorage.getItem('wtmd-font-v2') || '')
+const fontFamily = ref(normalizeFontFamily(localStorage.getItem('wtmd-font-v2')))
 function handleFontChange(value: string) {
-  fontFamily.value = value
-  localStorage.setItem('wtmd-font-v2', value)
+  fontFamily.value = normalizeFontFamily(value)
+  localStorage.setItem('wtmd-font-v2', fontFamily.value)
 }
 
 function togglePreviewFullscreen() {
@@ -195,9 +209,10 @@ function onKeydown(e: KeyboardEvent) {
 }
 window.addEventListener('keydown', onKeydown)
 // Editor 组件通过 defineExpose 暴露 scrollToLine（预览 → 源码定位用）
-const editorRef = ref<{ scrollToLine: (line: number) => void } | null>(null)
+const editorRef = ref<InstanceType<typeof Editor> | null>(null)
 
-const DEFAULT_CONTENT = `# 欢迎使用 WTMD
+function defaultContent() {
+  return `# 欢迎使用 WTMD
 
 轻量、高级、开箱即用的 **Markdown 预览器**。
 
@@ -247,6 +262,17 @@ $$
 \\int_{-\\infty}^{\\infty} e^{-x^2} dx = \\sqrt{\\pi}
 $$
 
+也支持 LaTeX 原生分隔符：\\(\\frac{a}{b} + \\sqrt{x}\\)。
+
+多行对齐公式：
+
+\\begin{align*}
+  (a+b)^2 &= a^2 + 2ab + b^2 \\\\
+  \\sum_{i=1}^n i &= \\frac{n(n+1)}{2}
+\\end{align*}
+
+使用工具栏的字体菜单，可以选择中文、英文和等宽字体；预览与导出均沿用所选字体。
+
 ### Mermaid 图表
 
 \`\`\`mermaid
@@ -271,6 +297,7 @@ graph TD
 
 > 提示：试试拖拽一个 \`.md\` 文件进来吧！
 `
+}
 
 function loadTheme(): 'light' | 'dark' | 'white' {
   try {
@@ -356,7 +383,7 @@ async function saveFileAs() {
 }
 
 // 导出 HTML / PDF（核心实现）
-async function exportDocument(kind: 'html' | 'pdf', bg: 'white' | 'cream' = 'cream', pageNumbers = false) {
+async function exportDocument(kind: 'html' | 'pdf', bg: 'white' | 'cream' = 'cream', pageNumbers = false, style = documentStyle.value) {
   if (!window.electronAPI) {
     alert('导出功能仅在桌面版可用')
     return
@@ -370,17 +397,18 @@ async function exportDocument(kind: 'html' | 'pdf', bg: 'white' | 'cream' = 'cre
     }
 
     // 等待渲染完成（公式走 KaTeX HTML，PDF 阶段再转 PNG 图片）
-    let html = await renderer.render(sourceContent.value)
-    // 相对路径图片 → data URL（预览缓存里已有则直接用）
-    html = await resolveRelativeImages(html)
-
-    if (kind === 'pdf' && wasDark) {
-      renderer.setTheme('dark')
+    let html: string
+    try {
+      html = await renderer.render(sourceContent.value)
+    } finally {
+      updateRenderer()
     }
+    // 导出前内嵌所有图片，避免临时打印目录、网络时序或 blob URL 导致缺图。
+    html = await resolveImages(html, true)
 
-    // PDF：Mermaid 占位替换为 SVG，KaTeX 公式渲染为高清 PNG 图片（printToPDF 不嵌入字体）
+    // 独立导出文件都内嵌 Mermaid SVG；PDF 另将块级公式转为高清图片。
+    html = await renderMermaidForExport(html)
     if (kind === 'pdf') {
-      html = await renderMermaidForExport(html)
       html = await renderKatexAsImages(html)
     }
 
@@ -390,12 +418,13 @@ async function exportDocument(kind: 'html' | 'pdf', bg: 'white' | 'cream' = 'cre
     const exportTheme = kind === 'pdf' ? 'light' : theme.value
     const exportHtml = buildExportHtml(html, exportTheme, docTitle, {
       // 界面为深色时，Mermaid 图表是深色渲染的，需要在浅色 PDF 中反色
-      mermaidDark: wasDark,
+      mermaidDark: false,
       // PDF 背景：纯白 / 米白
       // PDF 背景：纯白 / 米白（纯白主题时默认导出纯白）
       bg: kind === 'pdf' ? bg || (theme.value === 'white' ? 'white' : 'cream') : undefined,
       // 跟随预览选择的字体
-      fontFamily: kind === 'pdf' ? fontFamily.value || undefined : undefined
+      fontFamily: fontFamily.value || undefined,
+      documentStyle: style
     })
 
     const result = kind === 'html'
@@ -442,7 +471,7 @@ function debouncedRender() {
 async function renderContent() {
   try {
     const html = await renderer.render(sourceContent.value)
-    renderedHtml.value = await resolveRelativeImages(html)
+    renderedHtml.value = await resolveImages(html)
     tocItems.value = renderer.extractToc(sourceContent.value)
   } catch (err) {
     console.error('Render error:', err)
@@ -450,52 +479,14 @@ async function renderContent() {
   }
 }
 
-// 相对路径图片 → data URL（基于当前 md 文件目录；带缓存避免每次重读）
+// 预览复用本地图片缓存，导出同时内嵌远程和 blob 图片。
 const imageCache = new Map<string, string>()
-async function resolveRelativeImages(html: string): Promise<string> {
-  if (!window.electronAPI || !currentFilePath.value) return html
-  const baseDir = currentFilePath.value.replace(/[\\/][^\\/]*$/, '')
-  // 匹配 <img src="...">（排除 http/data/blob/file 开头的绝对引用）
-  const regex = /(<img[^>]+src=")([^"]+)(")/g
-  let out = html
-  let match: RegExpExecArray | null
-  while ((match = regex.exec(html)) !== null) {
-    const [, prefix, src, suffix] = match
-    if (/^(https?:|data:|blob:|file:)/.test(src)) continue
-    if (src.startsWith('/') || src.startsWith('\\')) continue
-    // 拼接绝对路径（处理 ../ 等）
-    const absPath = joinPath(baseDir, src)
-    const cached = imageCache.get(absPath)
-    if (cached) {
-      out = out.replace(match[0], `${prefix}${cached}${suffix}`)
-      continue
-    }
-    try {
-      const result = await window.electronAPI.readImage(absPath)
-      if (result.success && result.dataUrl) {
-        imageCache.set(absPath, result.dataUrl)
-        out = out.replace(match[0], `${prefix}${result.dataUrl}${suffix}`)
-      }
-    } catch (err) {
-      console.error('[image] 读取失败:', absPath, err)
-    }
-  }
-  return out
-}
-
-// 路径拼接（渲染进程无 node path，用字符串处理 ../ 和 .\）
-function joinPath(base: string, rel: string): string {
-  const parts = (base + '/' + rel).split(/[\\/]+/)
-  const stack: string[] = []
-  for (const p of parts) {
-    if (p === '' || p === '.') continue
-    if (p === '..') {
-      stack.pop()
-    } else {
-      stack.push(p)
-    }
-  }
-  return stack.join('/')
+async function resolveImages(html: string, forExport = false): Promise<string> {
+  if (!window.electronAPI) return html
+  return resolveDocumentImages(html, currentFilePath.value, window.electronAPI.readImage, {
+    cache: imageCache, forExport,
+    currentSources: forExport ? captureRenderedImageSources(document.querySelector('.preview-pane .markdown-body')) : undefined
+  })
 }
 
 function updateRenderer() {
@@ -748,6 +739,11 @@ function initMermaid() {
     // 渲染所有未处理的 Mermaid 图表
     const renderAll = async () => {
       await nextTick()
+      mermaidApi.initialize({
+        startOnLoad: false,
+        theme: documentStyle.value === 'homework' ? 'neutral' : theme.value === 'dark' ? 'dark' : 'neutral',
+        securityLevel: 'strict'
+      })
       const mermaidEls = document.querySelectorAll('.mermaid:not([data-processed])')
       for (const el of mermaidEls) {
         const id = (el as HTMLElement).dataset.mermaidId || `mermaid-${Math.random().toString(36).slice(2)}`
@@ -794,7 +790,9 @@ function decodeHtmlText(s: string): string {
 
 // PDF 导出：把 HTML 中的 Mermaid 占位（pre 源码）替换为实际渲染的 SVG
 async function renderMermaidForExport(html: string): Promise<string> {
-  if (!mermaidApi) return html
+  if (!html.includes('mermaid-container')) return html
+  if (!mermaidApi) mermaidApi = (await import('mermaid')).default
+  mermaidApi.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'strict' })
   const regex = /<div class="mermaid-container" data-mermaid-id="([^"]+)"[^>]*><pre class="mermaid">([\s\S]*?)<\/pre><\/div>/g
   let out = html
   let match: RegExpExecArray | null
@@ -817,9 +815,6 @@ async function renderKatexAsImages(html: string): Promise<string> {
   const html2canvasMod = await import('html2canvas')
   const html2canvas = html2canvasMod.default || html2canvasMod
 
-  const blocks = Array.from(html.matchAll(/<div class="katex-block">([\s\S]*?)<\/div>/g))
-  if (!blocks.length) return html
-
   if (!katexImgContainer) {
     katexImgContainer = document.createElement('div')
     katexImgContainer.style.cssText =
@@ -827,22 +822,9 @@ async function renderKatexAsImages(html: string): Promise<string> {
     document.body.appendChild(katexImgContainer)
   }
 
-  let out = html
-
   // 块级公式 → 高清大图（按公式原始尺寸显示，保持与正文协调；行内公式保留 HTML 文字）
-  for (const m of blocks) {
-    try {
-      const { dataUrl, width } = await formulaToPng(m[1], html2canvas, katexImgContainer)
-      out = out.replace(
-        m[0],
-        `<div class="katex-block"><img class="katex-pdf-img" src="${dataUrl}" style="width:${Math.round(width)}px" alt="数学公式" /></div>`
-      )
-    } catch (err) {
-      console.error('[katex] PDF 块级公式转图片失败:', err)
-    }
-  }
-
-  return out
+  return replaceDisplayMathWithImages(html, (formulaHtml) =>
+    formulaToPng(formulaHtml, html2canvas, katexImgContainer!))
 }
 
 // 单个公式 HTML → 透明 PNG data URL（4 倍高清，强制深色文字适配白底纸张）

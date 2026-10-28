@@ -8,6 +8,8 @@ release/
 Thumbs.db
 .reasonix/
 .worktrees/
+.playwright-cli/
+output/playwright/
 
 # Android
 android/.gradle/

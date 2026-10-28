@@ -1,0 +1,51 @@
+/* Shared by the live document and standalone HTML/PDF export. */
+.homework-document {
+  --bg-primary: #fff;
+  --bg-secondary: #fff;
+  --bg-tertiary: #fff;
+  --text-primary: #000;
+  --text-secondary: #000;
+  --text-tertiary: #000;
+  --border-color: #000;
+  --accent-color: #000;
+  --accent-soft: #fff;
+  --code-bg: #fff;
+  background: #fff !important;
+  color: #000 !important;
+}
+
+/* Filter artwork individually, preserving selectable text and page breaks. */
+.homework-document img,
+.homework-document svg,
+.homework-document canvas,
+.homework-document video { filter: grayscale(1); }
+
+.homework-document * {
+  background-color: transparent !important;
+  background-image: none !important;
+  border-color: #000 !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+
+/* Preserve diagram label contrast (for example white text on a dark node).
+   The SVG-level grayscale filter removes hue without erasing that contrast. */
+.homework-document :not(svg, svg *) { color: #000 !important; }
+
+.homework-document pre,
+.homework-document code,
+.homework-document table,
+.homework-document blockquote,
+.homework-document .code-block-wrapper,
+.homework-document .katex-block,
+.homework-document .mermaid-container,
+.homework-document img {
+  border-radius: 0 !important;
+}
+
+.homework-document .copy-btn { display: none !important; }
+.homework-document a { text-decoration: underline; }
+.homework-document table { border-collapse: collapse; }
+.homework-document .katex-block,
+.homework-document .mermaid-container { border: 0; padding: 4px 0; }
+

@@ -1,16 +1,18 @@
 <template>
-  <div class="preview-container" ref="previewEl" @click="handleClick">
-    <div class="markdown-body" v-html="html" :style="{ zoom: zoom / 100 }"></div>
+  <div class="preview-container" :class="{ 'homework-preview': documentStyle === 'homework' }" ref="previewEl" @click="handleClick">
+    <div class="markdown-body" :class="{ 'homework-document': documentStyle === 'homework' }" v-html="html" :style="{ zoom: zoom / 100 }"></div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue'
+import type { DocumentStyle } from '../engine/document-style'
 
 const props = defineProps<{
   html: string
   theme: 'light' | 'dark'
   zoom: number
+  documentStyle: DocumentStyle
 }>()
 
 const emit = defineEmits<{
@@ -75,6 +77,8 @@ function showImageOverlay(src: string, alt: string) {
   overflow: auto;
   padding: 28px 36px;
 }
+
+.homework-preview { background: #fff; }
 
 /* Markdown 内容样式 */
 .markdown-body {
@@ -307,6 +311,15 @@ function showImageOverlay(src: string, alt: string) {
 
 .markdown-body :deep(.katex-inline) {
   display: inline;
+}
+
+.markdown-body :deep(.katex-display-inline) {
+  display: block;
+}
+
+.markdown-body :deep(.katex-equation-number) {
+  display: block;
+  text-align: right;
 }
 
 .markdown-body :deep(.katex-error) {

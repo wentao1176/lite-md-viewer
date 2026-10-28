@@ -1,10 +1,11 @@
-import { app, BrowserWindow, ipcMain, dialog, Menu, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, Menu, shell, net } from 'electron'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { readFile, writeFile } from 'fs/promises'
 import { autoUpdater } from 'electron-updater'
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
 import { createPdfHtmlFile } from './pdf-html-file'
+import { waitForPrintResources } from './print-resources'
 
 // ESM 环境没有 __dirname，需要手动计算
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -250,6 +251,13 @@ ipcMain.handle('file:read', async (_event, filePath: string) => {
 // 读取图片 → data URL（相对路径图片基于 md 文件目录解析后转 base64，预览/导出都可用）
 ipcMain.handle('file:read-image', async (_event, filePath: string) => {
   try {
+    if (/^https?:\/\//i.test(filePath)) {
+      const response = await net.fetch(filePath, { signal: AbortSignal.timeout(30000), credentials: 'include' })
+      if (!response.ok) throw new Error(`图片请求失败：HTTP ${response.status}`)
+      const mime = response.headers.get('content-type')?.split(';')[0] || 'application/octet-stream'
+      const data = Buffer.from(await response.arrayBuffer())
+      return { success: true, dataUrl: `data:${mime};base64,${data.toString('base64')}` }
+    }
     const ext = filePath.split('.').pop()?.toLowerCase() || ''
     const mimeMap: Record<string, string> = {
       png: 'image/png',
@@ -361,7 +369,7 @@ async function exportPdfToPath(filePath: string, html: string, opts: { pageNumbe
   try {
     temporaryHtmlFile = await createPdfHtmlFile(html)
     await printWin.loadFile(temporaryHtmlFile.path)
-    await new Promise<void>((resolve) => setTimeout(resolve, 300))
+    await printWin.webContents.executeJavaScript(`(${waitForPrintResources.toString()})()`)
 
     const pdfData = await printWin.webContents.printToPDF({
       printBackground: true,

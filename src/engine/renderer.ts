@@ -1,8 +1,7 @@
 import MarkdownIt from 'markdown-it'
 import { createHighlighter, type Highlighter } from 'shiki'
-import katex from 'katex'
-import texmath from 'markdown-it-texmath'
 import DOMPurify from 'dompurify'
+import { renderMath, setupMath } from './math'
 
 export interface RenderOptions {
   enableHighlight?: boolean
@@ -16,7 +15,7 @@ export interface RenderOptions {
 }
 
 let highlighter: Highlighter | null = null
-let highlighterInitPromise: Promise<void> | null = null
+let highlighterInitPromise: Promise<Highlighter> | null = null
 
 async function getHighlighter(): Promise<Highlighter> {
   if (highlighter) return highlighter
@@ -38,7 +37,7 @@ async function getHighlighter(): Promise<Highlighter> {
       return h
     })
   }
-  return highlighterInitPromise.then(() => highlighter!)
+  return highlighterInitPromise
 }
 
 export class MarkdownRenderer {
@@ -72,6 +71,11 @@ export class MarkdownRenderer {
       }
     })
 
+    // A desktop Markdown document may reference local file images. Other
+    // dangerous protocols continue through markdown-it's default validator.
+    const validateLink = this.md.validateLink.bind(this.md)
+    this.md.validateLink = url => /^file:/i.test(url) || validateLink(url)
+
     this.setupPlugins()
   }
 
@@ -96,6 +100,18 @@ export class MarkdownRenderer {
     this.md.renderer.rules.fence = (tokens, idx, options, env, self) => {
       const token = tokens[idx]
       const lang = token.info.trim().split(/\s+/)[0]
+
+      if (this.options.enableKatex && ['math', 'latex', 'tex'].includes(lang.toLowerCase()) &&
+          !/\\(?:documentclass|begin\{document\})/.test(token.content)) {
+        let formula = token.content.trim()
+        for (const [opening, closing] of [['$$', '$$'], ['\\[', '\\]']]) {
+          if (formula.startsWith(opening) && formula.endsWith(closing)) {
+            formula = formula.slice(opening.length, -closing.length).trim()
+            break
+          }
+        }
+        return renderMath(this.md, formula, true, token.map ? token.map[0] + 1 : undefined)
+      }
 
       if (lang === 'mermaid' && this.options.enableMermaid) {
         const content = token.content
@@ -144,41 +160,7 @@ export class MarkdownRenderer {
 
     // KaTeX 数学公式
     if (this.options.enableKatex) {
-      // 解析 $...$ / $$...$$ 为 math_inline / math_block token
-      this.md.use(texmath, {
-        engine: katex,
-        delimiters: 'dollars',
-        wrapper: 'span',
-        blockWrapper: 'div',
-        katexOptions: {
-          throwOnError: false,
-          errorColor: '#cc0000'
-        }
-      })
-
-      // 块级公式 $$...$$
-      this.md.renderer.rules.math_block = (tokens, idx) => {
-        try {
-          return `<div class="katex-block">${katex.renderToString(tokens[idx].content, {
-            displayMode: true,
-            throwOnError: false
-          })}</div>`
-        } catch {
-          return `<div class="katex-error">数学公式渲染失败</div>`
-        }
-      }
-
-      // 行内公式 $...$
-      this.md.renderer.rules.math_inline = (tokens, idx) => {
-        try {
-          return `<span class="katex-inline">${katex.renderToString(tokens[idx].content, {
-            displayMode: false,
-            throwOnError: false
-          })}</span>`
-        } catch {
-          return `<span class="katex-error">?</span>`
-        }
-      }
+      setupMath(this.md)
     }
 
     // 外链 target="_blank"
@@ -245,7 +227,10 @@ export class MarkdownRenderer {
     let html = this.md.renderer.render(tokens, this.md.options, env)
 
     if (this.options.sanitize) {
-      html = DOMPurify.sanitize(html)
+      html = DOMPurify.sanitize(html, {
+        // DOMPurify's standard safe schemes, plus local file/drive paths.
+        ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|matrix|file):|[a-z]:[\\/]|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i
+      })
     }
 
     // 异步 Shiki 高亮
@@ -348,9 +333,6 @@ export function createRenderer(options?: RenderOptions): MarkdownRenderer {
   return rendererInstance
 }
 
-export function getRenderer(): MarkdownRenderer {
-  if (!rendererInstance) {
-    rendererInstance = new MarkdownRenderer()
-  }
-  return rendererInstance
+export function getRenderer(options?: RenderOptions): MarkdownRenderer {
+  return createRenderer(options)
 }

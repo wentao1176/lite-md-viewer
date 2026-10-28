@@ -1,5 +1,8 @@
 // 导出引擎：将渲染后的 Markdown HTML 组装为独立可打印/可分发的完整 HTML
 import katexCss from 'katex/dist/katex.min.css?inline'
+import { embedKatexFonts } from './export-fonts'
+import homeworkCss from '../styles/homework.css?inline'
+import type { DocumentStyle } from './document-style'
 
 // KaTeX 字体：全部内联为 base64 data URI，保证导出 PDF 中公式字体正确渲染
 // （?inline 让 Vite 返回 data: URL）
@@ -47,19 +50,10 @@ const KATEX_FONTS: Array<[string, string]> = [
   ['KaTeX_Typewriter-Regular.woff2', kfTypeR]
 ]
 
-// 把 katex.min.css 里的相对字体路径替换为内联 data URI
-function inlineKatexFonts(css: string): string {
-  let out = css
-  for (const [file, uri] of KATEX_FONTS) {
-    out = out.split(`fonts/${file}`).join(uri)
-  }
-  return out
-}
-
-export type ExportTheme = 'light' | 'dark'
+export type ExportTheme = 'light' | 'dark' | 'white'
 
 // 与 App.vue 全局 CSS 变量保持一致的导出主题
-const THEME_CSS: Record<ExportTheme, string> = {
+const THEME_CSS: Record<'light' | 'dark', string> = {
   light: `
     --bg-primary: #faf7f2;
     --bg-secondary: #f3eee7;
@@ -249,6 +243,8 @@ const MARKDOWN_CSS = `
     page-break-inside: avoid;
   }
   .markdown-body .katex-inline { display: inline; }
+  .markdown-body .katex-display-inline { display: block; }
+  .markdown-body .katex-equation-number { display: block; text-align: right; }
 
   /* PDF 块级公式图片（高清 PNG） */
   .markdown-body .katex-pdf-img {
@@ -268,12 +264,16 @@ const MARKDOWN_CSS = `
   }
   .markdown-body .mermaid-container svg { max-width: 100%; }
 
-  .markdown-body img.md-image {
+  .markdown-body img {
     max-width: 100%;
+    height: auto;
+    object-fit: contain;
+    break-inside: avoid;
     border-radius: 12px;
   }
 
   @media print {
+    .markdown-body img { max-height: 230mm; }
     .markdown-body {
       max-width: none;
       padding: 36px 44px;
@@ -301,7 +301,7 @@ export function buildExportHtml(
   markdownHtml: string,
   theme: ExportTheme,
   title?: string,
-  options: { mermaidDark?: boolean; bg?: 'white' | 'cream'; fontFamily?: string } = {}
+  options: { mermaidDark?: boolean; bg?: 'white' | 'cream'; fontFamily?: string; documentStyle?: DocumentStyle } = {}
 ): string {
   const docTitle = title || 'lite-md-viewer 导出文档'
   const mermaidFix = options.mermaidDark
@@ -317,7 +317,7 @@ export function buildExportHtml(
 
   // 背景模式：纯白 / 米白
   const bgFix =
-    options.bg === 'white'
+    options.bg === 'white' || theme === 'white' || options.documentStyle === 'homework'
       ? `
   /* 纯白背景：覆盖米白变量；板块强调色用主题蓝 */
   :root {
@@ -348,18 +348,19 @@ export function buildExportHtml(
 <title>${docTitle}</title>
 <style>
 :root {
-  ${THEME_CSS[theme]}
+  ${THEME_CSS[theme === 'white' ? 'light' : theme]}
   --radius-md: 12px;
 }
 ${bgFix}
 ${MARKDOWN_CSS}
 ${mermaidFix}
 ${fontFix}
-${inlineKatexFonts(katexCss)}
+${embedKatexFonts(katexCss, KATEX_FONTS)}
+${options.documentStyle === 'homework' ? homeworkCss : ''}
 </style>
 </head>
 <body>
-<div class="markdown-body">
+<div class="markdown-body${options.documentStyle === 'homework' ? ' homework-document' : ''}">
 ${markdownHtml}
 </div>
 </body>

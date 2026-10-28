@@ -35,9 +35,25 @@
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
         </button>
       </div>
-      <select class="font-select" :value="fontFamily" @change="$emit('font-change', ($event.target as HTMLSelectElement).value)" title="预览字体">
-        <option v-for="f in FONT_OPTIONS" :key="f.value" :value="f.value">{{ f.label }}</option>
+      <select
+        class="font-select"
+        :value="fontFamily"
+        :style="{ fontFamily: fontFamily || undefined }"
+        @change="$emit('font-change', ($event.target as HTMLSelectElement).value)"
+        aria-label="预览及导出字体"
+        title="预览及导出字体；未安装的字体会使用系统替代字体"
+      >
+        <optgroup v-for="group in FONT_GROUPS" :key="group.label" :label="group.label">
+          <option v-for="font in group.options" :key="font.value" :value="font.value" :style="{ fontFamily: font.value || undefined }">{{ font.label }}</option>
+        </optgroup>
       </select>
+      <button
+        class="toolbar-btn"
+        :class="{ active: documentStyle === 'homework' }"
+        :aria-pressed="documentStyle === 'homework'"
+        :title="documentStyle === 'homework' ? '恢复常规阅读风格' : '切换到黑白作业风格'"
+        @click="$emit('document-style-change', documentStyle === 'homework' ? 'standard' : 'homework')"
+      >黑白作业</button>
     </div>
     <div class="toolbar-right">
       <button
@@ -119,6 +135,9 @@
 </template>
 
 <script setup lang="ts">
+import { FONT_GROUPS } from '../engine/fonts'
+import type { DocumentStyle } from '../engine/document-style'
+
 defineProps<{
   filePath: string
   theme: 'light' | 'dark' | 'white'
@@ -126,6 +145,7 @@ defineProps<{
   previewFullscreen: boolean
   fontFamily: string
   previewZoom: number
+  documentStyle: DocumentStyle
 }>()
 
 const emit = defineEmits<{
@@ -137,6 +157,7 @@ const emit = defineEmits<{
   'redo': []
   'toggle-fullscreen': []
   'font-change': [value: string]
+  'document-style-change': [value: DocumentStyle]
   'open-export': []
   'zoom-in': []
   'zoom-out': []
@@ -144,14 +165,6 @@ const emit = defineEmits<{
   'toggle-collapse': []
 }>()
 
-// 常用预览字体（正文）：英文字体优先 + 中文字体配对，保证英文显示美观
-const FONT_OPTIONS = [
-  { label: '默认字体', value: '' },
-  { label: '微软雅黑', value: "'Times New Roman', 'Georgia', 'Segoe UI', 'Inter', 'Roboto', 'Microsoft YaHei', 'PingFang SC', sans-serif" },
-  { label: '宋体', value: "'Times New Roman', 'Georgia', 'SimSun', 'Songti SC', serif" },
-  { label: '楷体', value: "'Times New Roman', 'Georgia', 'KaiTi', 'STKaiti', 'Noto Serif SC', serif" },
-  { label: '黑体', value: "'Times New Roman', 'Georgia', 'Segoe UI', 'Helvetica Neue', 'Arial', 'SimHei', 'Heiti SC', sans-serif" }
-]
 </script>
 
 <style scoped>
@@ -250,11 +263,16 @@ const FONT_OPTIONS = [
   cursor: pointer;
   outline: none;
   -webkit-app-region: no-drag;
-  max-width: 130px;
+  max-width: 180px;
 }
 
 .font-select:hover {
   border-color: var(--accent-color);
+}
+
+.font-select:focus-visible {
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 2px var(--accent-soft);
 }
 
 /* 预览缩放控件 */
