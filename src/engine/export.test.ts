@@ -30,9 +30,11 @@ describe('standalone document export', () => {
     const body = document.querySelector('.homework-document')!
     expect(body).not.toBeNull()
     expect(getComputedStyle(body).backgroundColor).toBe('rgb(255, 255, 255)')
-    expect(getComputedStyle(body.querySelector('p')!).color).toBe('rgb(0, 0, 0)')
+    const channels = getComputedStyle(body.querySelector('p')!).color.match(/\d+/g)!.map(Number)
+    expect(channels[0]).toBe(channels[1])
+    expect(channels[1]).toBe(channels[2])
+    expect(channels[0]).toBeLessThanOrEqual(64)
     expect(getComputedStyle(body.querySelector('img')!).filter).toBe('grayscale(1)')
-    expect(getComputedStyle(body.querySelector('pre')!).borderRadius).toBe('0px')
   })
 
   it('preserves light diagram labels on dark custom nodes while removing artwork color', () => {

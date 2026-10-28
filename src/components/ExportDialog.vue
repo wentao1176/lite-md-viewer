@@ -39,7 +39,7 @@
           <button class="option-btn" :class="{ selected: style === 'standard' }" @click="style = 'standard'">常规阅读</button>
           <button class="option-btn" :class="{ selected: style === 'homework' }" @click="style = 'homework'">黑白作业</button>
         </div>
-        <div v-if="style === 'homework'" class="section-hint">白纸黑字，图片和图表转为灰度，适合作业打印</div>
+        <div v-if="style === 'homework'" class="section-hint">柔和黑白灰，保留原有字体、留白和排版层次，图片与图表去色</div>
       </div>
 
       <!-- 背景（仅常规 PDF） -->

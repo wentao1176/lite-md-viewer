@@ -1,17 +1,20 @@
 /* Shared by the live document and standalone HTML/PDF export. */
 .homework-document {
   --bg-primary: #fff;
-  --bg-secondary: #fff;
-  --bg-tertiary: #fff;
-  --text-primary: #000;
-  --text-secondary: #000;
-  --text-tertiary: #000;
-  --border-color: #000;
-  --accent-color: #000;
-  --accent-soft: #fff;
-  --code-bg: #fff;
+  --bg-secondary: #fafafa;
+  --bg-tertiary: #f3f3f3;
+  --text-primary: #252525;
+  --text-secondary: #555;
+  --text-tertiary: #888;
+  --border-color: #dedede;
+  --accent-color: #333;
+  --accent-hover: #111;
+  --accent-soft: #f4f4f4;
+  --code-bg: #fafafa;
+  --shadow-soft: 0 1px 8px rgba(0, 0, 0, 0.025);
+  --shadow-hover: 0 2px 12px rgba(0, 0, 0, 0.045);
   background: #fff !important;
-  color: #000 !important;
+  color: #252525 !important;
 }
 
 /* Filter artwork individually, preserving selectable text and page breaks. */
@@ -23,29 +26,37 @@
 .homework-document * {
   background-color: transparent !important;
   background-image: none !important;
-  border-color: #000 !important;
-  box-shadow: none !important;
   text-shadow: none !important;
 }
 
 /* Preserve diagram label contrast (for example white text on a dark node).
    The SVG-level grayscale filter removes hue without erasing that contrast. */
-.homework-document :not(svg, svg *) { color: #000 !important; }
+.homework-document :not(svg, svg *) { color: #252525 !important; }
 
-.homework-document pre,
-.homework-document code,
-.homework-document table,
-.homework-document blockquote,
-.homework-document .code-block-wrapper,
-.homework-document .katex-block,
-.homework-document .mermaid-container,
-.homework-document img {
-  border-radius: 0 !important;
+/* Neutralize decorative rules, but leave mathematical fraction bars intact. */
+.homework-document :not(svg, svg *, .katex, .katex *) {
+  border-color: #dedede !important;
 }
 
-.homework-document .copy-btn { display: none !important; }
-.homework-document a { text-decoration: underline; }
-.homework-document table { border-collapse: collapse; }
-.homework-document .katex-block,
-.homework-document .mermaid-container { border: 0; padding: 4px 0; }
+/* Keep the reader's existing typography and geometry; only remove hue. */
+.homework-document .code-block-wrapper,
+.homework-document pre {
+  background-color: #fafafa !important;
+}
+
+.homework-document .code-block-header,
+.homework-document th,
+.homework-document tr:nth-child(even),
+.homework-document blockquote,
+.homework-document code:not(pre code) {
+  background-color: #f4f4f4 !important;
+}
+
+.homework-document .code-lang,
+.homework-document .line-numbers,
+.homework-document .line-numbers span { color: #888 !important; }
+
+@media print {
+  .homework-document .copy-btn { display: none !important; }
+}
 
