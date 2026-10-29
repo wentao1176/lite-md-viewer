@@ -1,62 +1,178 @@
-/* Shared by the live document and standalone HTML/PDF export. */
-.homework-document {
+/* Academic layout shared by preview, HTML and the native PDF print window.
+   Keep the persisted "homework" identifier compatible with earlier versions. */
+.markdown-body.homework-document {
   --bg-primary: #fff;
-  --bg-secondary: #fafafa;
-  --bg-tertiary: #f3f3f3;
-  --text-primary: #252525;
-  --text-secondary: #555;
-  --text-tertiary: #888;
-  --border-color: #dedede;
-  --accent-color: #333;
-  --accent-hover: #111;
-  --accent-soft: #f4f4f4;
-  --code-bg: #fafafa;
-  --shadow-soft: 0 1px 8px rgba(0, 0, 0, 0.025);
-  --shadow-hover: 0 2px 12px rgba(0, 0, 0, 0.045);
+  --bg-secondary: #fff;
+  --bg-tertiary: #fff;
+  --text-primary: #202020;
+  --text-secondary: #444;
+  --text-tertiary: #666;
+  --border-color: #333;
+  --accent-color: #202020;
+  --accent-hover: #000;
+  --accent-soft: #fff;
+  --code-bg: #fff;
   background: #fff !important;
-  color: #252525 !important;
+  color: #202020 !important;
+  font-family: var(--md-font, 'Times New Roman', 'Noto Serif SC', 'Source Han Serif SC', 'SimSun', 'Songti SC', serif) !important;
+  font-size: 12pt !important;
+  line-height: 1.6 !important;
+  letter-spacing: 0;
+  text-align: justify;
+  overflow-wrap: break-word;
+  font-variant-numeric: lining-nums;
 }
 
-/* Filter artwork individually, preserving selectable text and page breaks. */
-.homework-document img,
+/* Its content width matches the A4 PDF's margins. */
+.preview-container.homework-preview { background: #ededeb; padding: 28px 24px; }
+.homework-preview > .markdown-body.homework-document { box-shadow: 0 1px 8px rgb(0 0 0 / 7%); }
+@media screen {
+  .markdown-body.homework-document:not(.math-capture) {
+    box-sizing: border-box;
+    width: 210mm;
+    max-width: 100%;
+    min-height: 297mm;
+    margin: 0 auto;
+    padding: 23mm 24mm 25mm;
+  }
+}
+
+.homework-document :not(svg, svg *) {
+  color: #202020 !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  text-shadow: none !important;
+  box-shadow: none !important;
+}
+/* Filter artwork, rather than the page, to keep text selectable and pagination
+   intact. SVG labels retain their contrast against custom nodes. */
+.homework-document img:not(.katex-pdf-img),
 .homework-document svg,
 .homework-document canvas,
 .homework-document video { filter: grayscale(1); }
 
-.homework-document * {
-  background-color: transparent !important;
-  background-image: none !important;
-  text-shadow: none !important;
+.homework-document :is(h1, h2, h3, h4, h5, h6):not(svg *) {
+  font-family: var(--md-font, 'Times New Roman', 'SimHei', 'Noto Serif SC', 'SimSun', serif);
+  font-weight: 700;
+  line-height: 1.5;
+  text-align: left;
+  text-indent: 0;
+  border: 0 !important;
+  padding: 0 !important;
+  margin: 1.2em 0 .5em !important;
+  break-after: avoid;
+  page-break-after: avoid;
+}
+.homework-document h1:not(svg *) { font-size: 17pt !important; }
+.homework-document h2:not(svg *) { font-size: 14pt !important; }
+.homework-document h3:not(svg *) { font-size: 12.5pt !important; }
+.homework-document :is(h4, h5, h6):not(svg *) { font-size: 12pt !important; }
+.homework-document h1.paper-title {
+  text-align: center;
+  line-height: 1.5;
+  margin: 0 0 1.5em !important;
+}
+.homework-document .paper-abstract > :is(h1, h2, h3) {
+  text-align: center;
+  letter-spacing: .2em;
+  margin: 0 0 1em !important;
+  font-size: 14pt !important;
+}
+.homework-document p:not(svg *) { margin: .4em 0 !important; text-indent: 2em; orphans: 2; widows: 2; }
+.homework-document .paper-abstract p:not(svg *) { margin: .7em 0 !important; }
+.homework-document p.paper-keywords { text-indent: 0; margin-top: 1.2em !important; }
+.homework-document :is(li, td, th, blockquote, figcaption, caption) p:not(svg *) { text-indent: 0; }
+.homework-document :is(ul, ol):not(svg *) { margin: .65em 0 !important; padding-left: 2em; }
+.homework-document li:not(svg *) { margin: .25em 0 !important; }
+.homework-document a:not(svg *) { text-decoration: underline; text-underline-offset: .18em; border: 0 !important; }
+.homework-document hr:not(svg *) { border: 0; border-top: .6pt solid #777; margin: 1.5em 0; }
+.homework-document blockquote:not(svg *) {
+  margin: 1em 0 !important;
+  padding: .2em 1.5em !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  font-size: 11pt;
 }
 
-/* Preserve diagram label contrast (for example white text on a dark node).
-   The SVG-level grayscale filter removes hue without erasing that contrast. */
-.homework-document :not(svg, svg *) { color: #252525 !important; }
-
-/* Neutralize decorative rules, but leave mathematical fraction bars intact. */
-.homework-document :not(svg, svg *, .katex, .katex *) {
-  border-color: #dedede !important;
+/* Three-line tables: a top rule, a header rule and a bottom rule. */
+.homework-document table:not(svg *) {
+  width: 100%;
+  margin: 1.2em 0 !important;
+  border-collapse: collapse !important;
+  border-spacing: 0;
+  border: 0 !important;
+  border-top: 1.2pt solid #202020 !important;
+  border-bottom: 1.2pt solid #202020 !important;
+  border-radius: 0 !important;
+  overflow: visible !important;
+  font-size: 10.5pt;
+  line-height: 1.55;
+  break-inside: auto;
 }
-
-/* Keep the reader's existing typography and geometry; only remove hue. */
-.homework-document .code-block-wrapper,
-.homework-document pre {
-  background-color: #fafafa !important;
+.homework-document :is(th, td):not(svg *) {
+  border: 0 !important;
+  padding: .35em .7em !important;
+  text-align: center;
 }
-
-.homework-document .code-block-header,
-.homework-document th,
-.homework-document tr:nth-child(even),
-.homework-document blockquote,
-.homework-document code:not(pre code) {
-  background-color: #f4f4f4 !important;
+.homework-document thead:not(svg *) { display: table-header-group; border-bottom: .65pt solid #202020; }
+.homework-document th:not(svg *) { font-weight: 700; }
+.homework-document tr:not(svg *) { break-inside: avoid; }
+.homework-document :is(caption, figcaption):not(svg *) {
+  font-size: 10.5pt;
+  font-weight: 400;
+  line-height: 1.55;
+  text-align: center;
+  text-indent: 0;
 }
+.homework-document caption { caption-side: top; padding: 0 0 .7em; }
+.homework-document figure { margin: 1.4em 0 !important; text-align: center; break-inside: avoid; }
+.homework-document figcaption { margin-top: .65em; }
+.homework-document img { border: 0 !important; border-radius: 0 !important; max-width: 100%; height: auto; }
+.homework-document .mermaid-container {
+  border: 0 !important;
+  border-radius: 0 !important;
+  padding: .5em 0 !important;
+  margin: 1em 0 !important;
+}
+.homework-document .katex-block {
+  position: relative;
+  padding: .2em 2em !important;
+  margin: .85em 0 !important;
+  border-radius: 0 !important;
+  text-indent: 0;
+  box-sizing: border-box;
+}
+.homework-document .katex-equation-number {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 11pt;
+}
+.homework-document .katex { font-size: 1.05em; text-indent: 0; }
+.homework-document .katex-pdf-img { display: inline-block; vertical-align: middle; }
 
-.homework-document .code-lang,
-.homework-document .line-numbers,
-.homework-document .line-numbers span { color: #888 !important; }
+/* Plain code listings, without tinted application cards. */
+.homework-document :is(.code-block-wrapper, pre):not(svg *) { border-radius: 0 !important; border: 0 !important; }
+.homework-document .code-block-wrapper:not(svg *) { border-top: .5pt solid #aaa !important; border-bottom: .5pt solid #aaa !important; margin: .5em 0; }
+.homework-document :is(pre, code):not(svg *) { font-size: 9.5pt; text-align: left; text-indent: 0; }
+.homework-document pre:not(svg *) { padding: 8px 12px !important; margin: 0 !important; line-height: 1.45 !important; }
+.homework-document code:not(pre code, svg *) { padding: 0 .15em !important; border-radius: 0 !important; }
+.homework-document .code-block-header { border: 0 !important; padding: .5em .8em 0 !important; }
+.homework-document .paper-references { font-size: 10.5pt; line-height: 1.6; }
+.homework-document .paper-references p:not(svg *) { text-indent: -1.8em; padding-left: 1.8em; }
+.homework-document .paper-references li:not(svg *) { padding-left: .3em; }
 
+@media screen and (max-width: 800px) {
+  .markdown-body.homework-document:not(.math-capture) { padding: 28px 24px; }
+}
 @media print {
-  .homework-document .copy-btn { display: none !important; }
+  .markdown-body.homework-document { padding: 0 !important; max-width: none; width: auto; }
+  .homework-document .paper-abstract:not(:last-child) { break-after: page; }
+  .homework-document p:has(+ .katex-block),
+  .homework-document p:has(+ p > .katex-block:only-child) { break-after: avoid; }
+  .homework-document :is(.code-block-header, .line-numbers) { display: none !important; }
+  .homework-document pre { white-space: pre-wrap !important; overflow-wrap: anywhere; }
+  .homework-document img:not(.katex-pdf-img) { max-height: 185mm; object-fit: contain; }
 }
 

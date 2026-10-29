@@ -44,16 +44,16 @@
         title="预览及导出字体；未安装的字体会使用系统替代字体"
       >
         <optgroup v-for="group in FONT_GROUPS" :key="group.label" :label="group.label">
-          <option v-for="font in group.options" :key="font.value" :value="font.value" :style="{ fontFamily: font.value || undefined }">{{ font.label }}</option>
+          <option v-for="font in group.options" :key="font.value" :value="font.value" :style="{ fontFamily: font.value || undefined }">{{ !font.value && documentStyle === 'homework' ? '论文默认（宋体 / Times）' : font.label }}</option>
         </optgroup>
       </select>
       <button
         class="toolbar-btn"
         :class="{ active: documentStyle === 'homework' }"
         :aria-pressed="documentStyle === 'homework'"
-        :title="documentStyle === 'homework' ? '恢复常规阅读风格' : '切换到黑白作业风格'"
+        :title="documentStyle === 'homework' ? '恢复常规阅读风格' : '数模论文：衬线正文、三线表与黑白图表'"
         @click="$emit('document-style-change', documentStyle === 'homework' ? 'standard' : 'homework')"
-      >黑白作业</button>
+      >数模论文</button>
     </div>
     <div class="toolbar-right">
       <button

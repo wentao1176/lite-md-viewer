@@ -107,6 +107,8 @@ import { normalizeFontFamily } from './engine/fonts'
 import { replaceDisplayMathWithImages } from './engine/math-export'
 import { captureRenderedImageSources, resolveDocumentImages } from './engine/images'
 import { normalizeDocumentStyle, type DocumentStyle } from './engine/document-style'
+import { formatPaperLayout } from './engine/paper'
+import { findSourceElement } from './engine/source-lines'
 import NotificationBell, { type UpdaterState } from './components/NotificationBell.vue'
 import ExportDialog from './components/ExportDialog.vue'
 
@@ -409,7 +411,7 @@ async function exportDocument(kind: 'html' | 'pdf', bg: 'white' | 'cream' = 'cre
     // 独立导出文件都内嵌 Mermaid SVG；PDF 另将块级公式转为高清图片。
     html = await renderMermaidForExport(html)
     if (kind === 'pdf') {
-      html = await renderKatexAsImages(html)
+      html = await renderKatexAsImages(html, style)
     }
 
     const docTitle = currentFilePath.value
@@ -429,7 +431,7 @@ async function exportDocument(kind: 'html' | 'pdf', bg: 'white' | 'cream' = 'cre
 
     const result = kind === 'html'
       ? await window.electronAPI.exportHtml(exportHtml)
-      : await window.electronAPI.exportPdf(exportHtml, { pageNumbers })
+      : await window.electronAPI.exportPdf(exportHtml, { pageNumbers, documentStyle: style })
 
     if (result.success) {
       // 导出成功后轻提示
@@ -471,7 +473,8 @@ function debouncedRender() {
 async function renderContent() {
   try {
     const html = await renderer.render(sourceContent.value)
-    renderedHtml.value = await resolveImages(html)
+    const resolved = await resolveImages(html)
+    renderedHtml.value = documentStyle.value === 'homework' ? formatPaperLayout(resolved) : resolved
     tocItems.value = renderer.extractToc(sourceContent.value)
   } catch (err) {
     console.error('Render error:', err)
@@ -628,13 +631,7 @@ async function installUpdateNow() {
 function handleCursorLine(line: number) {
   const previewContainer = document.querySelector('.preview-pane .preview-container')
   if (!previewContainer) return
-  const targets = previewContainer.querySelectorAll('[data-line]')
-  let best: Element | null = null
-  for (const t of targets) {
-    const l = Number(t.getAttribute('data-line'))
-    if (l <= line) best = t
-    else break
-  }
+  const best = findSourceElement(previewContainer, line)
   if (best) {
     // 移除上一个高亮
     previewContainer.querySelectorAll('.source-sync-highlight').forEach((el) => {
@@ -811,7 +808,7 @@ async function renderMermaidForExport(html: string): Promise<string> {
 // PDF 导出：把 KaTeX 公式渲染为高清透明 PNG 图片
 // 原因：Chromium printToPDF 不嵌入 @font-face 字体（已实测验证），图片是唯一保证打印公式正确的方式
 let katexImgContainer: HTMLDivElement | null = null
-async function renderKatexAsImages(html: string): Promise<string> {
+async function renderKatexAsImages(html: string, style: DocumentStyle): Promise<string> {
   const html2canvasMod = await import('html2canvas')
   const html2canvas = html2canvasMod.default || html2canvasMod
 
@@ -821,6 +818,7 @@ async function renderKatexAsImages(html: string): Promise<string> {
       'position:fixed;left:-10000px;top:0;z-index:-1;background:transparent;color:#333;'
     document.body.appendChild(katexImgContainer)
   }
+  katexImgContainer.className = style === 'homework' ? 'markdown-body homework-document math-capture' : ''
 
   // 块级公式 → 高清大图（按公式原始尺寸显示，保持与正文协调；行内公式保留 HTML 文字）
   return replaceDisplayMathWithImages(html, (formulaHtml) =>
@@ -835,6 +833,8 @@ async function formulaToPng(
   container: HTMLDivElement
 ): Promise<{ dataUrl: string; width: number; height: number }> {
   container.innerHTML = formulaHtml
+  const display = container.querySelector<HTMLElement>('.katex-display')
+  if (display) display.style.margin = '0'
   // 强制公式文字深色（页面可能处于浅色主题，保证图片在 PDF 白底上清晰）
   container.querySelectorAll('*').forEach((el) => {
     const e = el as HTMLElement
@@ -846,7 +846,7 @@ async function formulaToPng(
   const width = container.clientWidth || 200
   const height = container.clientHeight || 40
   const canvas = await html2canvas(container, {
-    backgroundColor: null,
+    backgroundColor: container.classList.contains('homework-document') ? '#fff' : null,
     scale: 4,
     logging: false,
     useCORS: true

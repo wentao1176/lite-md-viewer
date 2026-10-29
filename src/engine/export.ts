@@ -3,6 +3,7 @@ import katexCss from 'katex/dist/katex.min.css?inline'
 import { embedKatexFonts } from './export-fonts'
 import homeworkCss from '../styles/homework.css?inline'
 import type { DocumentStyle } from './document-style'
+import { formatPaperLayout } from './paper'
 
 // KaTeX 字体：全部内联为 base64 data URI，保证导出 PDF 中公式字体正确渲染
 // （?inline 让 Vite 返回 data: URL）
@@ -336,6 +337,7 @@ export function buildExportHtml(
   const fontFix = options.fontFamily
     ? `
   html, body, .markdown-body {
+    --md-font: ${options.fontFamily};
     font-family: ${options.fontFamily};
   }`
     : ``
@@ -361,7 +363,7 @@ ${options.documentStyle === 'homework' ? homeworkCss : ''}
 </head>
 <body>
 <div class="markdown-body${options.documentStyle === 'homework' ? ' homework-document' : ''}">
-${markdownHtml}
+${options.documentStyle === 'homework' ? formatPaperLayout(markdownHtml) : markdownHtml}
 </div>
 </body>
 </html>`

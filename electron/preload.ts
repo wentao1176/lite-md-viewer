@@ -22,7 +22,7 @@ export interface ElectronAPI {
   saveFile: (path: string, content: string) => Promise<{ success: boolean; error?: string }>
   saveFileAs: (content: string) => Promise<{ success: boolean; path?: string; error?: string }>
   exportHtml: (html: string) => Promise<ExportResult>
-  exportPdf: (html: string) => Promise<ExportResult>
+  exportPdf: (html: string, opts?: { pageNumbers?: boolean; documentStyle?: 'standard' | 'homework' }) => Promise<ExportResult>
   getAppVersion: () => Promise<string>
   onFileLoaded: (callback: (data: { path: string; content: string }) => void) => void
   onMenuSave: (callback: () => void) => void
@@ -47,7 +47,7 @@ const api: ElectronAPI = {
   saveFile: (path: string, content: string) => ipcRenderer.invoke('file:save', path, content),
   saveFileAs: (content: string) => ipcRenderer.invoke('file:save-as', content),
   exportHtml: (html: string) => ipcRenderer.invoke('export:html', html),
-  exportPdf: (html: string, opts?: { pageNumbers?: boolean }) => ipcRenderer.invoke('export:pdf', html, opts),
+  exportPdf: (html: string, opts?: { pageNumbers?: boolean; documentStyle?: 'standard' | 'homework' }) => ipcRenderer.invoke('export:pdf', html, opts),
   getAppVersion: () => ipcRenderer.invoke('app:get-version'),
 
   onFileLoaded: (callback) => {

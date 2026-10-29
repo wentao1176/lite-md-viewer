@@ -338,7 +338,9 @@ ipcMain.handle('export:html', async (_event, html: string) => {
 })
 
 // 导出 PDF：用独立隐藏窗口加载 HTML 后 printToPDF（避免主窗口深色背景产生黑边）
-ipcMain.handle('export:pdf', async (_event, html: string, opts: { pageNumbers?: boolean } = {}) => {
+type PdfExportOptions = { pageNumbers?: boolean; documentStyle?: 'standard' | 'homework' }
+
+ipcMain.handle('export:pdf', async (_event, html: string, opts: PdfExportOptions = {}) => {
   const result = await dialog.showSaveDialog(mainWindow!, {
     title: '导出 PDF',
     defaultPath: 'document.pdf',
@@ -350,7 +352,7 @@ ipcMain.handle('export:pdf', async (_event, html: string, opts: { pageNumbers?: 
   return await exportPdfToPath(result.filePath, html, opts)
 })
 
-async function exportPdfToPath(filePath: string, html: string, opts: { pageNumbers?: boolean }) {
+async function exportPdfToPath(filePath: string, html: string, opts: PdfExportOptions) {
   let temporaryHtmlFile: Awaited<ReturnType<typeof createPdfHtmlFile>> | null = null
 
   // A4 尺寸 @ 96dpi：210mm ≈ 794px，297mm ≈ 1123px
@@ -374,8 +376,13 @@ async function exportPdfToPath(filePath: string, html: string, opts: { pageNumbe
     const pdfData = await printWin.webContents.printToPDF({
       printBackground: true,
       pageSize: 'A4',
-      // 打印边距：上下明显留白（底部 0.8in 给页码充足空间），左右 0.55in
-      margins: {
+      // Use a consistent paper text width on every page, without body padding.
+      margins: opts.documentStyle === 'homework' ? {
+        top: 0.9,
+        bottom: 0.9,
+        left: 0.95,
+        right: 0.95
+      } : {
         top: 0.55,
         bottom: 0.8,
         left: 0.55,
@@ -387,7 +394,7 @@ async function exportPdfToPath(filePath: string, html: string, opts: { pageNumbe
     await writeFile(filePath, pdfData)
     // 可选：添加页码（每页底部居中"第 X 页 / 共 Y 页"）
     if (opts.pageNumbers) {
-      await addPageNumbersToPdf(filePath)
+      await addPageNumbersToPdf(filePath, opts.documentStyle)
     }
     return { success: true, path: filePath }
   } catch (err: any) {
@@ -399,7 +406,7 @@ async function exportPdfToPath(filePath: string, html: string, opts: { pageNumbe
 }
 
 // 给 PDF 每页底部居中追加页码（pdf-lib 后处理）
-async function addPageNumbersToPdf(filePath: string) {
+async function addPageNumbersToPdf(filePath: string, documentStyle?: 'standard' | 'homework') {
   const bytes = await readFile(filePath)
   const pdf = await PDFDocument.load(bytes)
   const pages = pdf.getPages()
@@ -416,7 +423,7 @@ async function addPageNumbersToPdf(filePath: string) {
       y: 22,
       size: 9,
       font,
-      color: rgb(0.55, 0.53, 0.5)
+      color: documentStyle === 'homework' ? rgb(0.4, 0.4, 0.4) : rgb(0.55, 0.53, 0.5)
     })
   }
   const withNumbers = await pdf.save()

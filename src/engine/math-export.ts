@@ -16,13 +16,26 @@ export async function replaceDisplayMathWithImages(
 
   for (const formula of formulas) {
     try {
-      const { dataUrl, width } = await renderImage(formula.outerHTML)
+      // KaTeX positions tags absolutely. Rasterizing a shrink-to-fit wrapper
+      // puts them on top of the formula; keep the number as selectable text.
+      const raster = formula.cloneNode(true) as HTMLElement
+      const tag = raster.querySelector('.tag')
+      tag?.remove()
+      const { dataUrl, width } = await renderImage(raster.outerHTML)
       const image = document.createElement('img')
       image.className = 'katex-pdf-img'
       image.src = dataUrl
       image.alt = formula.querySelector('annotation')?.textContent || '数学公式'
       image.style.width = `${Math.round(width)}px`
-      formula.replaceWith(image)
+      if (tag) {
+        const label = document.createElement('span')
+        label.className = 'katex-equation-number katex'
+        // Keep automatic CSS counters, math-styled tags and aligned rows.
+        label.append(...tag.childNodes)
+        formula.replaceWith(image, label)
+      } else {
+        formula.replaceWith(image)
+      }
     } catch {
       // Leave the original KaTeX markup available if rasterization fails.
     }

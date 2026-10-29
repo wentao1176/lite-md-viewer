@@ -45,4 +45,15 @@ describe('standalone document export', () => {
     expect(getComputedStyle(document.querySelector('foreignObject span')!).color).toBe('rgb(255, 255, 255)')
     expect(getComputedStyle(document.querySelector('svg')!).filter).toBe('grayscale(1)')
   })
+
+  it('keeps paper paragraph indentation and spacing out of measured SVG labels', () => {
+    const html = buildExportHtml('<p>正文</p><svg><foreignObject width="40"><div class="nodeLabel"><p style="margin:0">Input</p></div></foreignObject></svg>', 'light', '', { documentStyle: 'homework' })
+    const doc = new DOMParser().parseFromString(html, 'text/html')
+    document.head.innerHTML = doc.head.innerHTML
+    document.body.innerHTML = doc.body.innerHTML
+    const paragraph = document.querySelector('foreignObject p')!
+    expect(getComputedStyle(paragraph).marginTop).toBe('0px')
+    expect(parseFloat(getComputedStyle(paragraph).textIndent) || 0).toBe(0)
+    expect(getComputedStyle(document.querySelector('.homework-document > p')!).textIndent).toBe('32px')
+  })
 })

@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="330" viewBox="0 0 720 330">
+  <rect width="720" height="330" fill="white"/>
+  <g font-family="Times New Roman, SimSun, serif" fill="#202020" font-size="17">
+    <g stroke="#ddd" stroke-width="1">
+      <path d="M80 60H630M80 110H630M80 160H630M80 210H630M80 260H630"/>
+    </g>
+    <path d="M80 40V260H630V40" fill="none" stroke="#333" stroke-width="1.4"/>
+    <g text-anchor="end"><text x="68" y="266">12.0</text><text x="68" y="216">12.5</text><text x="68" y="166">13.0</text><text x="68" y="116">13.5</text><text x="68" y="66">14.0</text></g>
+    <g text-anchor="start"><text x="641" y="266">0.70</text><text x="641" y="216">0.75</text><text x="641" y="166">0.80</text><text x="641" y="116">0.85</text><text x="641" y="66">0.90</text></g>
+    <g text-anchor="middle"><text x="80" y="286">0.0</text><text x="190" y="286">0.2</text><text x="300" y="286">0.4</text><text x="410" y="286">0.6</text><text x="520" y="286">0.8</text><text x="630" y="286">1.0</text><text x="355" y="317">成本权重 α</text></g>
+    <text x="80" y="24">运输成本 / 万元</text><text x="515" y="24">最低满足率</text>
+    <path d="M80 55L190 91L300 132L410 174L520 205L630 220" fill="none" stroke="#202020" stroke-width="2.5"/>
+    <path d="M80 42L190 57L300 80L410 122L520 184L630 240" fill="none" stroke="#777" stroke-width="2.5" stroke-dasharray="8 5"/>
+    <g fill="#202020"><circle cx="80" cy="55" r="3.5"/><circle cx="190" cy="91" r="3.5"/><circle cx="300" cy="132" r="3.5"/><circle cx="410" cy="174" r="3.5"/><circle cx="520" cy="205" r="3.5"/><circle cx="630" cy="220" r="3.5"/></g>
+    <rect x="102" y="190" width="210" height="54" fill="white"/>
+    <path d="M115 205H150" stroke="#202020" stroke-width="2.5"/><text x="162" y="211">运输成本</text>
+    <path d="M115 231H150" stroke="#777" stroke-width="2.5" stroke-dasharray="8 5"/><text x="162" y="237">最低满足率</text>
+  </g>
+</svg>
