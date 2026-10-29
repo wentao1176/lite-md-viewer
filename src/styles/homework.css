@@ -11,7 +11,7 @@
   --accent-color: #202020;
   --accent-hover: #000;
   --accent-soft: #fff;
-  --code-bg: #fff;
+  --code-bg: #f5f5f5;
   background: #fff !important;
   color: #202020 !important;
   font-family: var(--md-font, 'Times New Roman', 'Noto Serif SC', 'Source Han Serif SC', 'SimSun', 'Songti SC', serif) !important;
@@ -152,11 +152,12 @@
 .homework-document .katex { font-size: 1.05em; text-indent: 0; }
 .homework-document .katex-pdf-img { display: inline-block; vertical-align: middle; }
 
-/* Plain code listings, without tinted application cards. */
+/* Quiet gray listings with no line-number gutter or divider. */
 .homework-document :is(.code-block-wrapper, pre):not(svg *) { border-radius: 0 !important; border: 0 !important; }
-.homework-document .code-block-wrapper:not(svg *) { border-top: .5pt solid #aaa !important; border-bottom: .5pt solid #aaa !important; margin: .5em 0; }
+.homework-document .code-block-wrapper:not(svg *) { background-color: var(--code-bg) !important; border-radius: 4px !important; margin: .5em 0; }
+.homework-document .line-numbers:not(svg *) { display: none !important; }
 .homework-document :is(pre, code):not(svg *) { font-size: 9.5pt; text-align: left; text-indent: 0; }
-.homework-document pre:not(svg *) { padding: 8px 12px !important; margin: 0 !important; line-height: 1.45 !important; }
+.homework-document pre:not(svg *) { background-color: var(--code-bg) !important; padding: 8px 12px !important; margin: 0 !important; line-height: 1.45 !important; }
 .homework-document code:not(pre code, svg *) { padding: 0 .15em !important; border-radius: 0 !important; }
 .homework-document .code-block-header { border: 0 !important; padding: .5em .8em 0 !important; }
 .homework-document .paper-references { font-size: 10.5pt; line-height: 1.6; }
@@ -171,7 +172,7 @@
   .homework-document .paper-abstract:not(:last-child) { break-after: page; }
   .homework-document p:has(+ .katex-block),
   .homework-document p:has(+ p > .katex-block:only-child) { break-after: avoid; }
-  .homework-document :is(.code-block-header, .line-numbers) { display: none !important; }
+  .homework-document .code-block-header { display: none !important; }
   .homework-document pre { white-space: pre-wrap !important; overflow-wrap: anywhere; }
   .homework-document img:not(.katex-pdf-img) { max-height: 185mm; object-fit: contain; }
 }

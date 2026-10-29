@@ -37,7 +37,7 @@
         <div class="section-label">文档风格</div>
         <div class="option-row">
           <button class="option-btn" :class="{ selected: style === 'standard' }" @click="style = 'standard'">常规阅读</button>
-          <button class="option-btn" :class="{ selected: style === 'homework' }" @click="style = 'homework'">数模论文</button>
+          <button class="option-btn" :class="{ selected: style === 'homework' }" @click="style = 'homework'">简洁版</button>
         </div>
         <div v-if="style === 'homework'" class="section-hint">衬线正文、居中标题、三线表与黑白图表；摘要独立成页。可继续使用所选字体。</div>
       </div>
