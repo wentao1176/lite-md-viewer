@@ -1,4 +1,5 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
+import type { ImageInsertionRequest, ImageInsertionResult } from '../src/shared/image-insertion'
 
 export interface ExportResult {
   success: boolean
@@ -19,6 +20,8 @@ export interface ElectronAPI {
   openFile: () => Promise<void>
   readFile: (path: string) => Promise<{ success: boolean; content?: string; error?: string }>
   readImage: (path: string) => Promise<{ success: boolean; dataUrl?: string; error?: string }>
+  getPathForFile: (file: File) => string
+  insertImages: (request: ImageInsertionRequest) => Promise<ImageInsertionResult>
   saveFile: (path: string, content: string) => Promise<{ success: boolean; error?: string }>
   saveFileAs: (content: string) => Promise<{ success: boolean; path?: string; error?: string }>
   exportHtml: (html: string) => Promise<ExportResult>
@@ -44,6 +47,8 @@ const api: ElectronAPI = {
   openFile: () => ipcRenderer.invoke('file:open'),
   readFile: (path: string) => ipcRenderer.invoke('file:read', path),
   readImage: (path: string) => ipcRenderer.invoke('file:read-image', path),
+  getPathForFile: (file: File) => webUtils.getPathForFile(file),
+  insertImages: (request: ImageInsertionRequest) => ipcRenderer.invoke('images:insert', request),
   saveFile: (path: string, content: string) => ipcRenderer.invoke('file:save', path, content),
   saveFileAs: (content: string) => ipcRenderer.invoke('file:save-as', content),
   exportHtml: (html: string) => ipcRenderer.invoke('export:html', html),

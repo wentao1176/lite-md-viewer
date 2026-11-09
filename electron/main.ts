@@ -6,6 +6,8 @@ import { autoUpdater } from 'electron-updater'
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
 import { createPdfHtmlFile } from './pdf-html-file'
 import { waitForPrintResources } from './print-resources'
+import { IMAGE_EXTENSIONS, imageExtension, insertDocumentImages } from './document-images'
+import type { ImageInsertionRequest, ImageInsertionResult } from '../src/shared/image-insertion'
 
 // ESM 环境没有 __dirname，需要手动计算
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -15,6 +17,7 @@ let mainWindow: BrowserWindow | null = null
 // 未保存状态跟踪（渲染进程通过 IPC 上报；关闭窗口时提醒）
 let appIsDirty = false
 let forceClose = false
+let imageInsertionActive = false
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -43,6 +46,7 @@ function createWindow() {
 
   // 关闭窗口时：有未保存修改 → 询问保存/不保存/取消
   mainWindow.on('close', (e) => {
+    if (imageInsertionActive) { e.preventDefault(); return }
     if (forceClose || !appIsDirty) return
     e.preventDefault()
     void (async () => {
@@ -202,6 +206,7 @@ function buildMenu() {
 }
 
 async function openFileViaDialog() {
+  if (imageInsertionActive) return
   const result = await dialog.showOpenDialog(mainWindow!, {
     properties: ['openFile'],
     filters: [
@@ -216,6 +221,7 @@ async function openFileViaDialog() {
 }
 
 async function openFolderViaDialog() {
+  if (imageInsertionActive) return
   const result = await dialog.showOpenDialog(mainWindow!, {
     properties: ['openDirectory']
   })
@@ -226,6 +232,7 @@ async function openFolderViaDialog() {
 }
 
 async function loadFile(filePath: string) {
+  if (imageInsertionActive) return
   try {
     const content = await readFile(filePath, 'utf-8')
     mainWindow?.webContents.send('file:loaded', { path: filePath, content })
@@ -235,6 +242,47 @@ async function loadFile(filePath: string) {
 }
 
 // IPC handlers
+ipcMain.handle('images:insert', async (_event, request: ImageInsertionRequest): Promise<ImageInsertionResult> => {
+  if (imageInsertionActive) return { success: false, error: '正在插入图片，请稍候' }
+  imageInsertionActive = true
+  try {
+    if (!request || typeof request.content !== 'string' || !request.selection) throw new Error('无法读取当前文档，请重试')
+    let images: Array<{ data: Uint8Array; extension: string }>
+    if (request.pastedImages) {
+      images = request.pastedImages.map(image => ({ data: Buffer.from(image.bytes), extension: imageExtension(image.mimeType, image.name) }))
+    } else {
+      const picked = await dialog.showOpenDialog(mainWindow!, {
+        title: '插入图片',
+        properties: ['openFile', 'multiSelections'],
+        filters: [{ name: '图片文件', extensions: IMAGE_EXTENSIONS }]
+      })
+      if (picked.canceled || !picked.filePaths.length) return { success: false, cancelled: true, error: '已取消' }
+      images = []
+      for (const path of picked.filePaths) {
+        const data = await readFile(path)
+        images.push({ data, extension: imageExtension('', path) })
+      }
+    }
+    if (!images.length) return { success: false, cancelled: true, error: '已取消' }
+    let documentPath = request.documentPath
+    const allowNew = !documentPath
+    if (!documentPath) {
+      const location = await dialog.showSaveDialog(mainWindow!, {
+        title: '插入图片：保存文档位置',
+        defaultPath: '未命名.md',
+        filters: [{ name: 'Markdown 文件', extensions: ['md'] }]
+      })
+      if (location.canceled || !location.filePath) return { success: false, cancelled: true, error: '已取消' }
+      documentPath = /\.(?:md|markdown|mdown|mkd)$/i.test(location.filePath) ? location.filePath : `${location.filePath}.md`
+    }
+    return await insertDocumentImages({ documentPath, content: request.content, selection: request.selection, images, allowNew })
+  } catch (error: any) {
+    return { success: false, error: error.message || '图片插入失败，请重试' }
+  } finally {
+    imageInsertionActive = false
+  }
+})
+
 ipcMain.handle('file:open', async () => {
   await openFileViaDialog()
 })
@@ -267,7 +315,8 @@ ipcMain.handle('file:read-image', async (_event, filePath: string) => {
       webp: 'image/webp',
       svg: 'image/svg+xml',
       bmp: 'image/bmp',
-      ico: 'image/x-icon'
+      ico: 'image/x-icon',
+      avif: 'image/avif'
     }
     const mime = mimeMap[ext] || 'application/octet-stream'
     const data = await readFile(filePath)

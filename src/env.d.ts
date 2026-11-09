@@ -10,6 +10,8 @@ interface ElectronAPI {
   openFile: () => Promise<void>
   readFile: (path: string) => Promise<{ success: boolean; content?: string; error?: string }>
   readImage: (path: string) => Promise<{ success: boolean; dataUrl?: string; error?: string }>
+  getPathForFile: (file: File) => string
+  insertImages: (request: import('./shared/image-insertion').ImageInsertionRequest) => Promise<import('./shared/image-insertion').ImageInsertionResult>
   saveFile: (path: string, content: string) => Promise<{ success: boolean; error?: string }>
   saveFileAs: (content: string) => Promise<{ success: boolean; path?: string; error?: string }>
   exportHtml: (html: string) => Promise<{ success: boolean; path?: string; error?: string }>

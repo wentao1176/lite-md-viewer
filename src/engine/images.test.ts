@@ -96,4 +96,17 @@ describe('document image sources', () => {
     }, { forExport: true, currentSources })
     expect(loaded).toEqual(['https://example.com/two.png'])
   })
+
+  it('embeds local responsive preview candidates after document relocation', async () => {
+    const loaded: string[] = []
+    const html = '<picture><source srcset="images/2.png 1x, images/3.png 2x"><img src="images/1.png" srcset="images/4.png 2x"></picture>'
+    const output = await resolveDocumentImages(html, 'D:/notes/paper/paper.md', async src => {
+      loaded.push(src)
+      return { success: true, dataUrl: `data:image/png;base64,${btoa(src)}` }
+    })
+    const container = document.createElement('div'); container.innerHTML = output
+    expect(loaded.sort()).toEqual([1, 2, 3, 4].map(n => `D:/notes/paper/images/${n}.png`))
+    expect(container.querySelector('source')?.getAttribute('srcset')).toMatch(/^data:image\/png;base64,[^ ]+ 1x, data:image\/png;base64,[^ ]+ 2x$/)
+    expect(container.querySelector('img')?.getAttribute('srcset')).toMatch(/^data:image\/png;base64,[^ ]+ 2x$/)
+  })
 })

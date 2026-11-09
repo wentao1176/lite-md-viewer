@@ -1,25 +1,33 @@
 <template>
   <div class="toolbar">
     <div class="toolbar-center">
-      <button class="toolbar-btn icon-btn" @click="$emit('open-file')" title="打开文件 (Ctrl+O)">
+      <button class="toolbar-btn icon-btn" :disabled="busy" @click="$emit('open-file')" title="打开文件 (Ctrl+O)">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
         </svg>
       </button>
-      <button class="toolbar-btn icon-btn" @click="$emit('save-file')" title="保存 (Ctrl+S)">
+      <button class="toolbar-btn icon-btn" :disabled="busy" @click="$emit('save-file')" title="保存 (Ctrl+S)">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
           <path d="M17 21v-8H7v8M7 3v5h8" />
         </svg>
       </button>
+      <button class="toolbar-btn" :disabled="busy" @click="$emit('insert-image')" title="插入图片（也可直接粘贴截图）">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="18" height="18" rx="2" />
+          <circle cx="8.5" cy="8.5" r="1.5" />
+          <path d="m21 15-5-5L5 21" />
+        </svg>
+        插入图片
+      </button>
       <span class="toolbar-divider"></span>
-      <button class="toolbar-btn icon-btn" @click="$emit('undo')" title="撤销 (Ctrl+Z)">
+      <button class="toolbar-btn icon-btn" :disabled="busy" @click="$emit('undo')" title="撤销 (Ctrl+Z)">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M3 7v6h6" />
           <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13" />
         </svg>
       </button>
-      <button class="toolbar-btn icon-btn" @click="$emit('redo')" title="重做 (Ctrl+Y)">
+      <button class="toolbar-btn icon-btn" :disabled="busy" @click="$emit('redo')" title="重做 (Ctrl+Y)">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M21 7v6h-6" />
           <path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3L21 13" />
@@ -58,6 +66,7 @@
     <div class="toolbar-right">
       <button
         class="toolbar-btn icon-btn"
+        :disabled="busy"
         :class="{ active: previewFullscreen }"
         @click="$emit('toggle-fullscreen')"
         :title="previewFullscreen ? '退出全屏 (Esc)' : '预览全屏'"
@@ -110,6 +119,7 @@
       <!-- 导出（打开导出对话框：输出形式/背景/页码） -->
       <button
         class="toolbar-btn pdf-btn"
+        :disabled="busy"
         @click="$emit('open-export')"
         title="导出文档"
       >
@@ -146,6 +156,7 @@ defineProps<{
   fontFamily: string
   previewZoom: number
   documentStyle: DocumentStyle
+  busy?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -153,6 +164,7 @@ const emit = defineEmits<{
   'toggle-toc': []
   'open-file': []
   'save-file': []
+  'insert-image': []
   'undo': []
   'redo': []
   'toggle-fullscreen': []
@@ -227,6 +239,13 @@ const emit = defineEmits<{
 
 .toolbar-btn:active {
   transform: translateY(0);
+  box-shadow: none;
+}
+
+.toolbar-btn:disabled {
+  opacity: 0.45;
+  cursor: wait;
+  transform: none;
   box-shadow: none;
 }
 

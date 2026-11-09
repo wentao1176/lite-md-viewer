@@ -9,16 +9,18 @@
       :font-family="fontFamily"
       :preview-zoom="previewZoom"
       :document-style="documentStyle"
+      :busy="documentBusy"
       @toggle-theme="toggleTheme"
       @toggle-toc="toggleToc"
       @open-file="handleOpenFile"
       @save-file="handleSaveFile"
+      @insert-image="handleInsertImage"
       @undo="handleUndo"
       @redo="handleRedo"
       @toggle-fullscreen="togglePreviewFullscreen"
       @font-change="handleFontChange"
       @document-style-change="handleDocumentStyleChange"
-      @open-export="exportDialogOpen = true"
+      @open-export="handleOpenExport"
       @zoom-in="zoomIn"
       @zoom-out="zoomOut"
       @zoom-reset="zoomReset"
@@ -74,8 +76,11 @@
           ref="editorRef"
           :content="sourceContent"
           :theme="theme === 'dark' ? 'dark' : 'light'"
+          :read-only="documentBusy"
+          :document-id="documentId"
           @update:content="handleContentChange"
           @cursor-line="handleCursorLine"
+          @paste-images="handlePasteImages"
         />
       </div>
       <div v-if="!previewFullscreen" class="divider" @mousedown="startResize"></div>
@@ -109,6 +114,7 @@ import { captureRenderedImageSources, resolveDocumentImages } from './engine/ima
 import { normalizeDocumentStyle, type DocumentStyle } from './engine/document-style'
 import { formatPaperLayout } from './engine/paper'
 import { findSourceElement } from './engine/source-lines'
+import type { ImageInsertionRequest, ImageSelection } from './shared/image-insertion'
 import NotificationBell, { type UpdaterState } from './components/NotificationBell.vue'
 import ExportDialog from './components/ExportDialog.vue'
 
@@ -124,6 +130,10 @@ const sourceContent = ref(defaultContent())
 const renderedHtml = ref('')
 const currentFilePath = ref('')
 const isDirty = ref(false) // 是否有未保存修改
+const documentId = ref(0)
+const documentOperationActive = ref(false)
+const exportDialogOpen = ref(false)
+const documentBusy = computed(() => documentOperationActive.value || exportDialogOpen.value)
 const tocItems = ref<Array<{ level: number; text: string; id: string }>>([])
 
 const editorRatio = ref(1)
@@ -178,7 +188,10 @@ window.addEventListener(
 )
 
 // 导出对话框
-const exportDialogOpen = ref(false)
+function handleOpenExport() {
+  if (!documentBusy.value) exportDialogOpen.value = true
+}
+
 function handleExportConfirm(opts: { format: 'pdf' | 'html'; bg: 'white' | 'cream'; pageNumbers: boolean; documentStyle: DocumentStyle }) {
   exportDialogOpen.value = false
   exportDocument(opts.format, opts.bg, opts.pageNumbers, opts.documentStyle)
@@ -186,9 +199,11 @@ function handleExportConfirm(opts: { format: 'pdf' | 'html'; bg: 'white' | 'crea
 
 // 撤销 / 重做（工具栏箭头按钮）
 function handleUndo() {
+  if (documentBusy.value) return
   editorRef.value?.undo?.()
 }
 function handleRedo() {
+  if (documentBusy.value) return
   editorRef.value?.redo?.()
 }
 
@@ -200,6 +215,7 @@ function handleFontChange(value: string) {
 }
 
 function togglePreviewFullscreen() {
+  if (documentBusy.value) return
   previewFullscreen.value = !previewFullscreen.value
 }
 
@@ -330,67 +346,167 @@ function toggleToc() {
 }
 
 async function handleOpenFile() {
-  if (window.electronAPI) {
-    await window.electronAPI.openFile()
-  } else {
-    // 浏览器 fallback
-    const input = document.createElement('input')
-    input.type = 'file'
-    input.accept = '.md,.markdown,.mdown,.mkd'
-    input.onchange = async () => {
-      const file = input.files?.[0]
-      if (file) {
-        const text = await file.text()
-        sourceContent.value = text
-        currentFilePath.value = file.name
-        renderContent()
-      }
+  if (documentBusy.value) return
+  documentOperationActive.value = true
+  try {
+    if (window.electronAPI) {
+      await window.electronAPI.openFile()
+    } else {
+      // 浏览器 fallback
+      const input = document.createElement('input')
+      input.type = 'file'
+      input.accept = '.md,.markdown,.mdown,.mkd'
+      await new Promise<void>((resolve, reject) => {
+        input.oncancel = () => resolve()
+        input.onchange = async () => {
+          try {
+            const file = input.files?.[0]
+            if (file) await loadDocument(file.name, await file.text())
+            resolve()
+          } catch (error) {
+            reject(error)
+          }
+        }
+        input.click()
+      })
     }
-    input.click()
+  } catch (error) {
+    showToast(`打开失败：${error instanceof Error ? error.message : String(error)}`, true)
+  } finally {
+    documentOperationActive.value = false
   }
 }
 
-async function handleSaveFile() {
-  if (!window.electronAPI) {
-    // 浏览器 fallback
-    const blob = new Blob([sourceContent.value], { type: 'text/markdown' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = currentFilePath.value || 'document.md'
-    a.click()
-    URL.revokeObjectURL(url)
+async function loadDocument(path: string, content: string) {
+  documentId.value++
+  sourceContent.value = content
+  currentFilePath.value = path
+  isDirty.value = false
+  imageCache.clear()
+  await renderContent()
+}
+
+function handleInsertImage() {
+  return insertImages()
+}
+
+function handlePasteImages(files: File[], selection: ImageSelection) {
+  return insertImages(files, selection)
+}
+
+async function insertImages(files?: File[], selection?: ImageSelection) {
+  if (documentBusy.value) return
+  if (!window.electronAPI?.insertImages) {
+    showToast('插入图片并保存资源文件需要使用桌面版', true)
     return
   }
-  // 已有文件路径 → 直接写回原文件（不弹框）；否则弹"另存为"
-  if (currentFilePath.value) {
-    const result = await window.electronAPI.saveFile(currentFilePath.value, sourceContent.value)
-    if (result.success) {
-      isDirty.value = false
-    } else {
-      // 原路径失效（文件被移动/删除）→ 退回另存为
-      await saveFileAs()
+  const openedDocument = documentId.value
+  const path = currentFilePath.value
+  const originalContent = sourceContent.value
+  // CodeMirror 的选区偏移基于单字符换行；刚打开的磁盘文本可能仍是 CRLF。
+  const content = editorRef.value?.getContent() ?? originalContent.replace(/\r\n?/g, '\n')
+  const request: ImageInsertionRequest = {
+    documentPath: path,
+    content,
+    selection: selection || editorRef.value?.getSelection() || { from: content.length, to: content.length }
+  }
+  const isCurrentDocument = () => documentId.value === openedDocument && currentFilePath.value === path && sourceContent.value === originalContent
+  documentOperationActive.value = true
+  try {
+    if (files) {
+      request.pastedImages = await Promise.all(files.map(async file => ({
+        name: file.name,
+        mimeType: file.type,
+        bytes: new Uint8Array(await file.arrayBuffer())
+      })))
     }
-  } else {
-    await saveFileAs()
+    const result = await window.electronAPI.insertImages(request)
+    if (!result.success) {
+      if (!result.cancelled) showToast(`插入图片失败：${result.error}`, true)
+      return
+    }
+    if (!isCurrentDocument()) {
+      showToast(`图片已保存至 ${result.path}；当前文档已切换`)
+      return
+    }
+    previewFullscreen.value = false
+    await nextTick()
+    if (!isCurrentDocument()) return
+    editorRef.value?.applyImageInsertion(result)
+    sourceContent.value = result.content
+    currentFilePath.value = result.path
+    isDirty.value = false
+    imageCache.clear()
+    await renderContent()
+    showToast(`已插入 ${result.imagePaths.length} 张图片`)
+  } catch (error) {
+    showToast(`插入图片失败：${error instanceof Error ? error.message : String(error)}`, true)
+  } finally {
+    documentOperationActive.value = false
+    await nextTick()
+    if (documentId.value === openedDocument) editorRef.value?.focus()
   }
 }
 
-async function saveFileAs() {
-  const result = await window.electronAPI.saveFileAs(sourceContent.value)
-  if (result.success && result.path) {
+async function handleSaveFile(): Promise<boolean> {
+  if (documentBusy.value) return false
+  documentOperationActive.value = true
+  const openedDocument = documentId.value
+  const content = sourceContent.value
+  const path = currentFilePath.value
+  try {
+    if (!window.electronAPI) {
+      // 浏览器 fallback
+      const blob = new Blob([content], { type: 'text/markdown' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = path || 'document.md'
+      a.click()
+      URL.revokeObjectURL(url)
+      return true
+    }
+    // 已有文件路径 → 直接写回原文件（不弹框）；否则弹"另存为"
+    if (path) {
+      const result = await window.electronAPI.saveFile(path, content)
+      if (result.success) {
+        if (documentId.value !== openedDocument || sourceContent.value !== content) return false
+        isDirty.value = false
+        return true
+      }
+      // 原路径失效（文件被移动/删除）→ 退回另存为
+      return await saveFileAs(content, openedDocument)
+    } else {
+      return await saveFileAs(content, openedDocument)
+    }
+  } catch (error) {
+    showToast(`保存失败：${error instanceof Error ? error.message : String(error)}`, true)
+    return false
+  } finally {
+    documentOperationActive.value = false
+  }
+}
+
+async function saveFileAs(content: string, openedDocument: number): Promise<boolean> {
+  const result = await window.electronAPI.saveFileAs(content)
+  if (result.success && result.path && documentId.value === openedDocument && sourceContent.value === content) {
     currentFilePath.value = result.path
     isDirty.value = false
+    return true
   }
+  if (!result.success && result.error !== '已取消') showToast(`保存失败：${result.error}`, true)
+  return false
 }
 
 // 导出 HTML / PDF（核心实现）
 async function exportDocument(kind: 'html' | 'pdf', bg: 'white' | 'cream' = 'cream', pageNumbers = false, style = documentStyle.value) {
+  if (documentBusy.value) return
   if (!window.electronAPI) {
     alert('导出功能仅在桌面版可用')
     return
   }
 
+  documentOperationActive.value = true
   try {
     // PDF 强制浅色主题渲染（纸张阅读自然，避免深色代码块/图表产生黑块）
     const wasDark = theme.value === 'dark'
@@ -441,6 +557,8 @@ async function exportDocument(kind: 'html' | 'pdf', bg: 'white' | 'cream' = 'cre
     }
   } catch (err: any) {
     showToast(`导出出错：${err.message}`, true)
+  } finally {
+    documentOperationActive.value = false
   }
 }
 
@@ -470,13 +588,20 @@ function debouncedRender() {
   renderTimer = setTimeout(() => renderContent(), 100)
 }
 
+let renderGeneration = 0
 async function renderContent() {
+  const generation = ++renderGeneration
+  const content = sourceContent.value
+  const path = currentFilePath.value
+  const style = documentStyle.value
   try {
-    const html = await renderer.render(sourceContent.value)
-    const resolved = await resolveImages(html)
-    renderedHtml.value = documentStyle.value === 'homework' ? formatPaperLayout(resolved) : resolved
-    tocItems.value = renderer.extractToc(sourceContent.value)
+    const html = await renderer.render(content)
+    const resolved = await resolveImages(html, false, path)
+    if (generation !== renderGeneration) return
+    renderedHtml.value = style === 'homework' ? formatPaperLayout(resolved) : resolved
+    tocItems.value = renderer.extractToc(content)
   } catch (err) {
+    if (generation !== renderGeneration) return
     console.error('Render error:', err)
     renderedHtml.value = '<p class="render-error">渲染失败，请检查 Markdown 语法</p>'
   }
@@ -484,9 +609,9 @@ async function renderContent() {
 
 // 预览复用本地图片缓存，导出同时内嵌远程和 blob 图片。
 const imageCache = new Map<string, string>()
-async function resolveImages(html: string, forExport = false): Promise<string> {
+async function resolveImages(html: string, forExport = false, path = currentFilePath.value): Promise<string> {
   if (!window.electronAPI) return html
-  return resolveDocumentImages(html, currentFilePath.value, window.electronAPI.readImage, {
+  return resolveDocumentImages(html, path, window.electronAPI.readImage, {
     cache: imageCache, forExport,
     currentSources: forExport ? captureRenderedImageSources(document.querySelector('.preview-pane .markdown-body')) : undefined
   })
@@ -666,10 +791,7 @@ onMounted(async () => {
   // 监听 Electron IPC
   if (window.electronAPI) {
     window.electronAPI.onFileLoaded((data) => {
-      sourceContent.value = data.content
-      currentFilePath.value = data.path
-      isDirty.value = false
-      renderContent()
+      loadDocument(data.path, data.content)
     })
     window.electronAPI.onMenuSave(() => handleSaveFile())
     window.electronAPI.onMenuExportHtml(() => exportDocument('html'))
@@ -678,8 +800,7 @@ onMounted(async () => {
     window.electronAPI.onMenuToggleToc(() => toggleToc())
     // 关闭窗口前询问保存 → 保存成功后通知主进程真正关闭
     window.electronAPI.onSaveBeforeClose(async () => {
-      await handleSaveFile()
-      window.electronAPI.notifySaveComplete()
+      if (await handleSaveFile()) window.electronAPI.notifySaveComplete()
     })
 
     // 更新事件 → 铃铛通知
@@ -697,13 +818,28 @@ onMounted(async () => {
   document.addEventListener('dragover', (e) => e.preventDefault())
   document.addEventListener('drop', async (e) => {
     e.preventDefault()
+    if (documentBusy.value) return
     const file = e.dataTransfer?.files?.[0]
-    if (file && (file.name.endsWith('.md') || file.name.endsWith('.markdown') || file.name.endsWith('.mdown'))) {
-      const text = await file.text()
-      sourceContent.value = text
-      currentFilePath.value = file.name
-      isDirty.value = false
-      renderContent()
+    if (file && /\.(?:md|markdown|mdown|mkd)$/i.test(file.name)) {
+      documentOperationActive.value = true
+      try {
+        if (window.electronAPI) {
+          const path = window.electronAPI.getPathForFile?.(file) || ''
+          if (path) {
+            const result = await window.electronAPI.readFile(path)
+            if (!result.success || result.content === undefined) throw new Error(result.error || '无法读取文件')
+            await loadDocument(path, result.content)
+          } else {
+            await loadDocument('', await file.text())
+          }
+        } else {
+          await loadDocument(file.name, await file.text())
+        }
+      } catch (error) {
+        showToast(`打开失败：${error instanceof Error ? error.message : String(error)}`, true)
+      } finally {
+        documentOperationActive.value = false
+      }
     }
   })
 

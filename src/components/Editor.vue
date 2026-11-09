@@ -1,33 +1,37 @@
 <template>
-  <div ref="editorContainer" class="editor-container"></div>
+  <div ref="editorContainer" class="editor-container" :aria-busy="readOnly || undefined"></div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter } from '@codemirror/view'
-import { EditorState } from '@codemirror/state'
+import { Compartment, EditorState, Transaction } from '@codemirror/state'
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
-import { history, historyKeymap, undo, redo, defaultKeymap } from '@codemirror/commands'
+import { history, historyKeymap, isolateHistory, undo, redo, defaultKeymap } from '@codemirror/commands'
+import type { ImageInsertionSuccess, ImageSelection } from '../shared/image-insertion'
 
 const props = defineProps<{
   content: string
   theme: 'light' | 'dark'
+  readOnly?: boolean
+  documentId?: number
 }>()
 
 const emit = defineEmits<{
   'update:content': [value: string]
   'cursor-line': [line: number]
+  'paste-images': [files: File[], selection: ImageSelection]
 }>()
 
 const editorContainer = ref<HTMLElement>()
 let editorView: EditorView | null = null
 let lastCursorLine = -1
+let applyingContent = false
+const editing = new Compartment()
 
-function createEditor() {
-  if (!editorContainer.value) return
-
+function createEditorState(content: string, cursor = 0) {
   const updateListener = EditorView.updateListener.of((update) => {
-    if (update.docChanged) {
+    if (update.docChanged && !applyingContent) {
       const newContent = update.state.doc.toString()
       emit('update:content', newContent)
     }
@@ -48,18 +52,43 @@ function createEditor() {
     highlightActiveLine(),
     highlightActiveLineGutter(),
     history(),
+    editing.of([EditorState.readOnly.of(!!props.readOnly), EditorView.editable.of(!props.readOnly)]),
     keymap.of(defaultKeymap),
     keymap.of(historyKeymap),
     updateListener,
+    EditorView.domEventHandlers({
+      paste(event, view) {
+        let files = Array.from(event.clipboardData?.files || []).filter(file => file.type.startsWith('image/'))
+        if (!files.length) {
+          files = Array.from(event.clipboardData?.items || [])
+            .filter(item => item.kind === 'file' && item.type.startsWith('image/'))
+            .map(item => item.getAsFile())
+            .filter((file): file is File => file !== null)
+        }
+        if (!files.length) return false
+        event.preventDefault()
+        if (!props.readOnly) {
+          const { from, to } = view.state.selection.main
+          emit('paste-images', files, { from, to })
+        }
+        return true
+      }
+    }),
     EditorView.lineWrapping,
     EditorState.tabSize.of(2)
   ]
 
+  return EditorState.create({
+    doc: content,
+    selection: { anchor: Math.min(cursor, content.length) },
+    extensions
+  })
+}
+
+function createEditor() {
+  if (!editorContainer.value) return
   editorView = new EditorView({
-    state: EditorState.create({
-      doc: props.content,
-      extensions
-    }),
+    state: createEditorState(props.content),
     parent: editorContainer.value
   })
 }
@@ -68,29 +97,50 @@ function updateTheme() {
   // 主题颜色全部由 CSS 变量驱动，切换 .theme-dark 类后自动生效，无需重建编辑器
 }
 
-watch(() => props.content, (newContent) => {
-  if (editorView && newContent !== editorView.state.doc.toString()) {
-    editorView.dispatch({
-      changes: {
-        from: 0,
-        to: editorView.state.doc.length,
-        insert: newContent
-      }
-    })
+watch([() => props.content, () => props.documentId], ([newContent, documentId], [, previousId]) => {
+  if (editorView && (documentId !== previousId || newContent !== editorView.state.doc.toString())) {
+    // 文件切换和外部同步建立新的基线，不产生编辑事件或可撤销的整篇替换。
+    lastCursorLine = -1
+    editorView.setState(createEditorState(newContent))
   }
 })
+
+watch(() => props.readOnly, (readOnly) => {
+  editorView?.dispatch({
+    effects: editing.reconfigure([EditorState.readOnly.of(!!readOnly), EditorView.editable.of(!readOnly)])
+  })
+}, { flush: 'sync' })
 
 watch(() => props.theme, () => {
   nextTick(() => updateTheme())
 })
 
-onMounted(() => {
-  nextTick(() => createEditor())
-})
+onMounted(createEditor)
 
 onUnmounted(() => {
   editorView?.destroy()
+  editorView = null
 })
+
+function applyImageInsertion(result: ImageInsertionSuccess) {
+  if (!editorView) return
+  applyingContent = true
+  try {
+    if (editorView.state.doc.toString() !== result.baseContent) {
+      // 资源搬迁后的路径是新的基线；撤销图片时不能恢复已失效的旧路径。
+      lastCursorLine = -1
+      editorView.setState(createEditorState(result.baseContent, result.change.from))
+    }
+    editorView.dispatch({
+      changes: result.change,
+      selection: { anchor: result.cursor },
+      annotations: [Transaction.userEvent.of('input.paste'), isolateHistory.of('full')],
+      effects: EditorView.scrollIntoView(result.cursor, { y: 'nearest' })
+    })
+  } finally {
+    applyingContent = false
+  }
+}
 
 // 滚动编辑器到指定行（1 基），供预览→源码定位使用
 function scrollToLine(line: number) {
@@ -110,12 +160,18 @@ function scrollToLine(line: number) {
 
 defineExpose({
   getContent: () => editorView?.state.doc.toString() || '',
+  getSelection: (): ImageSelection => {
+    const selection = editorView?.state.selection.main
+    return selection ? { from: selection.from, to: selection.to } : { from: props.content.length, to: props.content.length }
+  },
+  applyImageInsertion,
+  focus: () => editorView?.focus(),
   scrollToLine,
   undo: () => {
-    if (editorView) undo(editorView)
+    if (editorView && !props.readOnly) undo(editorView)
   },
   redo: () => {
-    if (editorView) redo(editorView)
+    if (editorView && !props.readOnly) redo(editorView)
   }
 })
 </script>

@@ -35,8 +35,8 @@ function imageSource(src: string, documentPath: string): string | null {
 function imageKey(image: HTMLImageElement): string {
   return JSON.stringify([
     image.getAttribute('data-wtmd-image-source') ?? image.getAttribute('src') ?? '',
-    image.getAttribute('srcset') || '',
-    Array.from(image.closest('picture')?.querySelectorAll('source') || [], source => [source.getAttribute('srcset'), source.getAttribute('media')])
+    image.getAttribute('data-wtmd-image-srcset') ?? image.getAttribute('srcset') ?? '',
+    Array.from(image.closest('picture')?.querySelectorAll('source') || [], source => [source.getAttribute('data-wtmd-image-srcset') ?? source.getAttribute('srcset'), source.getAttribute('media')])
   ])
 }
 
@@ -66,9 +66,44 @@ export async function resolveDocumentImages(
   const container = document.createElement('div')
   container.innerHTML = html
   const cache = options.cache || new Map<string, string>()
+  const embed = async (src: string): Promise<string> => {
+    if (/^data:/i.test(src)) return src
+    const source = imageSource(src, documentPath)
+    if (!source) throw new Error('请先保存 Markdown 文件，以确定相对图片路径')
+    if (!options.forExport && /^(?:https?:|blob:)/i.test(source)) return src
+    let dataUrl = cache.get(source)
+    if (!dataUrl) {
+      if (/^blob:/i.test(source)) {
+        const response = await fetch(source)
+        const blob = await response.blob()
+        dataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onload = () => resolve(String(reader.result))
+          reader.onerror = () => reject(reader.error)
+          reader.readAsDataURL(blob)
+        })
+      } else {
+        const result = await readImage(source)
+        if (!result.success || !result.dataUrl) throw new Error(result.error || '无法读取图片')
+        dataUrl = result.dataUrl
+      }
+      cache.set(source, dataUrl)
+    }
+    return dataUrl
+  }
   for (const image of container.querySelectorAll('img')) {
     const originalSrc = image.getAttribute('src') || ''
     const src = options.currentSources?.get(imageKey(image)) || originalSrc || responsiveSource(image)
+    if (!options.forExport) {
+      image.setAttribute('data-wtmd-image-source', originalSrc)
+      const responsive = [image, ...Array.from(image.closest('picture')?.querySelectorAll('source') || [])]
+      for (const element of responsive) {
+        const srcset = element.getAttribute('srcset')
+        if (!srcset) continue
+        element.setAttribute('data-wtmd-image-srcset', srcset)
+        element.setAttribute('srcset', await embedSrcset(srcset, embed))
+      }
+    }
     if (options.forExport) {
       image.setAttribute('loading', 'eager')
       image.removeAttribute('srcset')
@@ -80,33 +115,7 @@ export async function resolveDocumentImages(
         if (options.forExport) throw new Error('图片没有可用的来源')
         continue
       }
-      if (/^data:/i.test(src)) { image.setAttribute('src', src); continue }
-      const source = imageSource(src, documentPath)
-      if (!source) {
-        if (options.forExport) throw new Error('请先保存 Markdown 文件，以确定相对图片路径')
-        continue
-      }
-      if (!options.forExport && /^(?:https?:|blob:)/i.test(source)) continue
-      let dataUrl = cache.get(source)
-      if (!dataUrl) {
-        if (/^blob:/i.test(source)) {
-          const response = await fetch(source)
-          const blob = await response.blob()
-          dataUrl = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader()
-            reader.onload = () => resolve(String(reader.result))
-            reader.onerror = () => reject(reader.error)
-            reader.readAsDataURL(blob)
-          })
-        } else {
-          const result = await readImage(source)
-          if (!result.success || !result.dataUrl) throw new Error(result.error || '无法读取图片')
-          dataUrl = result.dataUrl
-        }
-        cache.set(source, dataUrl)
-      }
-      if (!options.forExport) image.setAttribute('data-wtmd-image-source', originalSrc)
-      image.setAttribute('src', dataUrl)
+      image.setAttribute('src', await embed(src))
     } catch (error) {
       if (options.forExport) {
         const label = image.alt || src.slice(0, 120)
@@ -115,4 +124,29 @@ export async function resolveDocumentImages(
     }
   }
   return container.innerHTML
+}
+
+async function embedSrcset(value: string, embed: (url: string) => Promise<string>): Promise<string> {
+  const edits: Array<{ from: number; to: number; text: string }> = []
+  let position = 0
+  while (position < value.length) {
+    while (/[\t\n\f\r ,]/.test(value[position] || '') && position < value.length) position++
+    const from = position
+    while (position < value.length && !/[\t\n\f\r ]/.test(value[position])) position++
+    let to = position
+    while (to > from && value[to - 1] === ',') to--
+    if (to > from) {
+      try { edits.push({ from, to, text: await embed(value.slice(from, to)) }) } catch { /* Keep missing candidates editable in the preview. */ }
+    }
+    if (to < position) continue
+    let depth = 0
+    while (position < value.length) {
+      const char = value[position++]
+      if (char === '(') depth++
+      else if (char === ')') depth = Math.max(0, depth - 1)
+      else if (char === ',' && !depth) break
+    }
+  }
+  for (const edit of edits.reverse()) value = value.slice(0, edit.from) + edit.text + value.slice(edit.to)
+  return value
 }
