@@ -59,7 +59,7 @@
         class="toolbar-btn"
         :class="{ active: documentStyle === 'homework' }"
         :aria-pressed="documentStyle === 'homework'"
-        :title="documentStyle === 'homework' ? '恢复常规阅读风格' : '简洁版：衬线正文、三线表与黑白图表'"
+        :title="documentStyle === 'homework' ? '恢复常规阅读风格' : '简洁版：衬线正文、三线表，插图保留原色'"
         @click="$emit('document-style-change', documentStyle === 'homework' ? 'standard' : 'homework')"
       >简洁版</button>
     </div>

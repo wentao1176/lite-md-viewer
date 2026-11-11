@@ -44,9 +44,8 @@
   text-shadow: none !important;
   box-shadow: none !important;
 }
-/* Filter artwork, rather than the page, to keep text selectable and pagination
-   intact. SVG labels retain their contrast against custom nodes. */
-.homework-document img:not(.katex-pdf-img),
+/* Keep inserted images in their original colors. Only generated diagrams and
+   media are grayscale; SVG labels retain contrast against custom nodes. */
 .homework-document svg,
 .homework-document canvas,
 .homework-document video { filter: grayscale(1); }

@@ -22,8 +22,8 @@ describe('standalone document export', () => {
     expect(html).not.toContain('undefined')
   })
 
-  it('renders homework documents with black text, white paper and grayscale artwork', () => {
-    const html = buildExportHtml('<p>Homework</p><pre><code>x = 1</code></pre><img src="data:image/png;base64,eA==">', 'dark', 'Homework', { documentStyle: 'homework' })
+  it('renders homework documents with black text and white paper while preserving inserted image colors', () => {
+    const html = buildExportHtml('<p>Homework</p><pre><code>x = 1</code></pre><img src="images/1.png"><img src="images/2.jpg"><img src="images/3.svg">', 'dark', 'Homework', { documentStyle: 'homework' })
     const doc = new DOMParser().parseFromString(html, 'text/html')
     document.head.innerHTML = doc.head.innerHTML
     document.body.innerHTML = doc.body.innerHTML
@@ -34,7 +34,9 @@ describe('standalone document export', () => {
     expect(channels[0]).toBe(channels[1])
     expect(channels[1]).toBe(channels[2])
     expect(channels[0]).toBeLessThanOrEqual(64)
-    expect(getComputedStyle(body.querySelector('img')!).filter).toBe('grayscale(1)')
+    for (const image of body.querySelectorAll('img')) {
+      expect(getComputedStyle(image).filter || 'none').toBe('none')
+    }
   })
 
   it('preserves light diagram labels on dark custom nodes while removing artwork color', () => {
