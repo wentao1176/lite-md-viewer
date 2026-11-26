@@ -1,5 +1,5 @@
 import { app, BrowserWindow, ipcMain, dialog, Menu, shell, net } from 'electron'
-import { join, dirname } from 'path'
+import { join, dirname, resolve } from 'path'
 import { fileURLToPath } from 'url'
 import { readFile, writeFile } from 'fs/promises'
 import { autoUpdater } from 'electron-updater'
@@ -7,20 +7,44 @@ import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
 import { createPdfHtmlFile } from './pdf-html-file'
 import { waitForPrintResources } from './print-resources'
 import { IMAGE_EXTENSIONS, imageExtension, insertDocumentImages } from './document-images'
+import type { UpdaterEvent } from './preload'
 import type { ImageInsertionRequest, ImageInsertionResult } from '../src/shared/image-insertion'
 
 // ESM 环境没有 __dirname，需要手动计算
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
-let mainWindow: BrowserWindow | null = null
+type DocumentData = { path: string; content: string }
+type WindowState = {
+  hasDocument: boolean
+  dirty: boolean
+  ready: boolean
+  pendingDocument?: DocumentData
+  closePending: boolean
+  closeApproved: boolean
+  imageInsertionActive: boolean
+}
 
-// 未保存状态跟踪（渲染进程通过 IPC 上报；关闭窗口时提醒）
-let appIsDirty = false
-let forceClose = false
-let imageInsertionActive = false
+const documentWindows = new Map<BrowserWindow, WindowState>()
+let lastUpdaterEvent: UpdaterEvent | undefined
+
+function activeDocumentWindow() {
+  const focused = BrowserWindow.getFocusedWindow()
+  return focused && documentWindows.has(focused) ? focused : documentWindows.keys().next().value
+}
+
+function documentWindowForSender(sender: Electron.WebContents) {
+  const window = BrowserWindow.fromWebContents(sender)
+  const state = window && documentWindows.get(window)
+  return window && state ? { window, state } : undefined
+}
+
+function focusWindow(window: BrowserWindow) {
+  if (window.isMinimized()) window.restore()
+  window.focus()
+}
 
 function createWindow() {
-  mainWindow = new BrowserWindow({
+  const window = new BrowserWindow({
     width: 1200,
     height: 800,
     minWidth: 600,
@@ -36,44 +60,72 @@ function createWindow() {
     backgroundColor: '#2a2724'
   })
 
+  const state: WindowState = {
+    hasDocument: false,
+    dirty: false,
+    ready: false,
+    closePending: false,
+    closeApproved: false,
+    imageInsertionActive: false
+  }
+  documentWindows.set(window, state)
+  window.webContents.on('did-start-loading', () => {
+    state.ready = false
+  })
+
   // 开发模式加载 Vite 开发服务器，生产模式加载打包后的文件
   if (process.env.VITE_DEV_SERVER_URL) {
-    mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL)
-    mainWindow.webContents.openDevTools()
+    window.loadURL(process.env.VITE_DEV_SERVER_URL)
+    window.webContents.openDevTools()
   } else {
-    mainWindow.loadFile(join(__dirname, '../dist/index.html'))
+    window.loadFile(join(__dirname, '../dist/index.html'))
   }
 
   // 关闭窗口时：有未保存修改 → 询问保存/不保存/取消
-  mainWindow.on('close', (e) => {
-    if (imageInsertionActive) { e.preventDefault(); return }
-    if (forceClose || !appIsDirty) return
-    e.preventDefault()
-    void (async () => {
-      const { response } = await dialog.showMessageBox(mainWindow!, {
-        type: 'warning',
-        buttons: ['保存', '不保存', '取消'],
-        defaultId: 0,
-        cancelId: 2,
-        message: '有未保存的修改',
-        detail: '是否先保存当前文档再退出？'
-      })
+  window.on('close', (event) => {
+    if (state.closeApproved) return
+    if (state.closePending || state.imageInsertionActive) {
+      event.preventDefault()
+      return
+    }
+    if (!state.dirty) return
+
+    event.preventDefault()
+    state.closePending = true
+    void dialog.showMessageBox(window, {
+      type: 'warning',
+      buttons: ['保存', '不保存', '取消'],
+      defaultId: 0,
+      cancelId: 2,
+      message: '有未保存的修改',
+      detail: '是否先保存当前文档再关闭窗口？'
+    }).then(({ response }) => {
+      if (window.isDestroyed()) return
       if (response === 0) {
-        // 让渲染进程执行保存，保存成功后通过 app:save-complete 回来关闭
-        mainWindow?.webContents.send('app:save-before-close')
-      } else if (response === 1) {
-        forceClose = true
-        mainWindow?.close()
+        window.webContents.send('app:save-before-close')
+        return
       }
-      // response === 2（取消）：什么都不做，窗口保持打开
-    })()
+      state.closePending = false
+      if (response === 1) {
+        state.closeApproved = true
+        window.close()
+      }
+    }).catch((error) => {
+      state.closePending = false
+      console.error('关闭窗口提示失败', error)
+    })
   })
 
-  mainWindow.on('closed', () => {
-    mainWindow = null
+  window.on('closed', () => {
+    documentWindows.delete(window)
   })
 
-  buildMenu()
+  return window
+}
+
+function showAppMessageBox(options: Electron.MessageBoxOptions) {
+  const window = activeDocumentWindow()
+  return window ? dialog.showMessageBox(window, options) : dialog.showMessageBox(options)
 }
 
 function buildMenu() {
@@ -95,15 +147,15 @@ function buildMenu() {
         {
           label: '保存',
           accelerator: 'CmdOrCtrl+S',
-          click: () => mainWindow?.webContents.send('menu:save')
+          click: () => activeDocumentWindow()?.webContents.send('menu:save')
         },
         {
           label: '导出 HTML...',
-          click: () => mainWindow?.webContents.send('menu:export-html')
+          click: () => activeDocumentWindow()?.webContents.send('menu:export-html')
         },
         {
           label: '导出 PDF...',
-          click: () => mainWindow?.webContents.send('menu:export-pdf')
+          click: () => activeDocumentWindow()?.webContents.send('menu:export-pdf')
         },
         { type: 'separator' },
         { role: 'quit', label: '退出' }
@@ -125,11 +177,11 @@ function buildMenu() {
         {
           label: '切换主题',
           accelerator: 'CmdOrCtrl+T',
-          click: () => mainWindow?.webContents.send('menu:toggle-theme')
+          click: () => activeDocumentWindow()?.webContents.send('menu:toggle-theme')
         },
         {
           label: '切换自动目录',
-          click: () => mainWindow?.webContents.send('menu:toggle-toc')
+          click: () => activeDocumentWindow()?.webContents.send('menu:toggle-toc')
         },
         { type: 'separator' },
         { role: 'reload', label: '刷新' },
@@ -146,7 +198,7 @@ function buildMenu() {
         {
           label: '关于 WTMD',
           click: async () => {
-            const result = await dialog.showMessageBox(mainWindow!, {
+            const result = await showAppMessageBox({
               type: 'info',
               title: '关于',
               message: 'WTMD',
@@ -169,7 +221,7 @@ function buildMenu() {
           click: () => {
             if (app.isPackaged) {
               autoUpdater.checkForUpdates().catch(() => {
-                dialog.showMessageBox(mainWindow!, {
+                showAppMessageBox({
                   type: 'info',
                   title: '检查更新',
                   message: '当前已是最新版本',
@@ -177,7 +229,7 @@ function buildMenu() {
                 })
               })
             } else {
-              dialog.showMessageBox(mainWindow!, {
+              showAppMessageBox({
                 type: 'info',
                 title: '检查更新',
                 message: '开发模式不检查更新'
@@ -205,53 +257,87 @@ function buildMenu() {
   Menu.setApplicationMenu(menu)
 }
 
-async function openFileViaDialog() {
-  if (imageInsertionActive) return
-  const result = await dialog.showOpenDialog(mainWindow!, {
-    properties: ['openFile'],
+async function openFileViaDialog(window = activeDocumentWindow()) {
+  if (window && documentWindows.get(window)?.imageInsertionActive) return
+  const options: Electron.OpenDialogOptions = {
+    properties: ['openFile', 'multiSelections'],
     filters: [
       { name: 'Markdown 文件', extensions: ['md', 'markdown', 'mdown', 'mkd'] },
       { name: '所有文件', extensions: ['*'] }
     ]
-  })
+  }
+  const result = await (window ? dialog.showOpenDialog(window, options) : dialog.showOpenDialog(options))
 
-  if (!result.canceled && result.filePaths.length > 0) {
-    await loadFile(result.filePaths[0])
+  if (!result.canceled) {
+    await openFilePaths(result.filePaths, window)
   }
 }
 
 async function openFolderViaDialog() {
-  if (imageInsertionActive) return
-  const result = await dialog.showOpenDialog(mainWindow!, {
+  const window = activeDocumentWindow()
+  if (!window || documentWindows.get(window)?.imageInsertionActive) return
+  const result = await dialog.showOpenDialog(window, {
     properties: ['openDirectory']
   })
 
-  if (!result.canceled && result.filePaths.length > 0) {
-    mainWindow?.webContents.send('folder:opened', result.filePaths[0])
+  if (!window.isDestroyed() && !result.canceled && result.filePaths.length > 0) {
+    window.webContents.send('folder:opened', result.filePaths[0])
   }
 }
 
-async function loadFile(filePath: string) {
-  if (imageInsertionActive) return
-  try {
-    const content = await readFile(filePath, 'utf-8')
-    mainWindow?.webContents.send('file:loaded', { path: filePath, content })
-  } catch (err: any) {
-    dialog.showErrorBox('打开失败', `无法读取文件:\n${err.message}`)
+function openDocument(document: DocumentData, preferredWindow?: BrowserWindow) {
+  const preferredState = preferredWindow && documentWindows.get(preferredWindow)
+  const reuseWelcome = preferredWindow && preferredState && !preferredState.hasDocument && !preferredState.dirty
+    && !preferredState.imageInsertionActive && !preferredState.closePending
+  const window = reuseWelcome ? preferredWindow : createWindow()
+  const state = documentWindows.get(window)!
+
+  state.hasDocument = true
+  if (state.ready) {
+    window.webContents.send('file:loaded', document)
+  } else {
+    state.pendingDocument = document
+  }
+  focusWindow(window)
+}
+
+async function openFilePaths(filePaths: string[], preferredWindow?: BrowserWindow) {
+  for (const path of filePaths) {
+    try {
+      const content = await readFile(path, 'utf-8')
+      openDocument({ path, content }, preferredWindow)
+    } catch (err: any) {
+      dialog.showErrorBox('打开失败', `无法读取文件:\n${path}\n${err.message}`)
+    }
   }
 }
 
 // IPC handlers
-ipcMain.handle('images:insert', async (_event, request: ImageInsertionRequest): Promise<ImageInsertionResult> => {
-  if (imageInsertionActive) return { success: false, error: '正在插入图片，请稍候' }
-  imageInsertionActive = true
+ipcMain.on('file:ready', (event) => {
+  const owner = documentWindowForSender(event.sender)
+  if (!owner) return
+  const { window, state } = owner
+  state.ready = true
+  if (state.pendingDocument) {
+    window.webContents.send('file:loaded', state.pendingDocument)
+    state.pendingDocument = undefined
+  }
+  if (lastUpdaterEvent) window.webContents.send('updater:event', lastUpdaterEvent)
+})
+
+ipcMain.handle('images:insert', async (event, request: ImageInsertionRequest): Promise<ImageInsertionResult> => {
+  const owner = documentWindowForSender(event.sender)
+  if (!owner) return { success: false, error: '文档窗口已关闭' }
+  const { window, state } = owner
+  if (state.imageInsertionActive) return { success: false, error: '正在插入图片，请稍候' }
+  state.imageInsertionActive = true
   try {
     if (!request || typeof request.content !== 'string' || !request.selection) throw new Error('无法读取当前文档，请重试')
     let images: Array<{ data: Uint8Array; extension: string }>
     if (request.pastedImages) {
       images = request.pastedImages.map(image => ({ data: Buffer.from(image.bytes), extension: imageExtension(image.mimeType, image.name) }))
     } else {
-      const picked = await dialog.showOpenDialog(mainWindow!, {
+      const picked = await dialog.showOpenDialog(window, {
         title: '插入图片',
         properties: ['openFile', 'multiSelections'],
         filters: [{ name: '图片文件', extensions: IMAGE_EXTENSIONS }]
@@ -267,7 +353,7 @@ ipcMain.handle('images:insert', async (_event, request: ImageInsertionRequest): 
     let documentPath = request.documentPath
     const allowNew = !documentPath
     if (!documentPath) {
-      const location = await dialog.showSaveDialog(mainWindow!, {
+      const location = await dialog.showSaveDialog(window, {
         title: '插入图片：保存文档位置',
         defaultPath: '未命名.md',
         filters: [{ name: 'Markdown 文件', extensions: ['md'] }]
@@ -275,24 +361,28 @@ ipcMain.handle('images:insert', async (_event, request: ImageInsertionRequest): 
       if (location.canceled || !location.filePath) return { success: false, cancelled: true, error: '已取消' }
       documentPath = /\.(?:md|markdown|mdown|mkd)$/i.test(location.filePath) ? location.filePath : `${location.filePath}.md`
     }
-    return await insertDocumentImages({ documentPath, content: request.content, selection: request.selection, images, allowNew })
+    const result = await insertDocumentImages({ documentPath, content: request.content, selection: request.selection, images, allowNew })
+    if (result.success) state.hasDocument = true
+    return result
   } catch (error: any) {
     return { success: false, error: error.message || '图片插入失败，请重试' }
   } finally {
-    imageInsertionActive = false
+    state.imageInsertionActive = false
   }
 })
 
-ipcMain.handle('file:open', async () => {
-  await openFileViaDialog()
+ipcMain.handle('file:open', async (event) => {
+  const owner = documentWindowForSender(event.sender)
+  if (owner) await openFileViaDialog(owner.window)
 })
 
-ipcMain.handle('file:read', async (_event, filePath: string) => {
-  try {
-    const content = await readFile(filePath, 'utf-8')
-    return { success: true, content }
-  } catch (err: any) {
-    return { success: false, error: err.message }
+ipcMain.handle('file:dropped', async (event, filePath: string, content?: string) => {
+  const owner = documentWindowForSender(event.sender)
+  if (!owner) return
+  if (filePath) {
+    await openFilePaths([filePath], owner.window)
+  } else if (typeof content === 'string') {
+    openDocument({ path: '', content }, owner.window)
   }
 })
 
@@ -328,17 +418,24 @@ ipcMain.handle('file:read-image', async (_event, filePath: string) => {
 })
 
 // 未保存状态上报（渲染进程）
-ipcMain.on('app:set-dirty', (_event, dirty: boolean) => {
-  appIsDirty = dirty
+ipcMain.on('app:set-dirty', (event, dirty: boolean) => {
+  const owner = documentWindowForSender(event.sender)
+  if (owner) owner.state.dirty = dirty
 })
 
-// 关闭前保存完成 → 真正关闭窗口
-ipcMain.on('app:save-complete', () => {
-  forceClose = true
-  mainWindow?.close()
+ipcMain.on('app:save-complete', (event, saved: boolean) => {
+  const owner = documentWindowForSender(event.sender)
+  if (!owner?.state.closePending) return
+  const { window, state } = owner
+  state.closePending = false
+  if (saved) {
+    state.closeApproved = true
+    window.close()
+  }
 })
 
-ipcMain.handle('file:save', async (_event, filePath: string, content: string) => {  try {
+ipcMain.handle('file:save', async (_event, filePath: string, content: string) => {
+  try {
     await writeFile(filePath, content, 'utf-8')
     return { success: true }
   } catch (err: any) {
@@ -346,8 +443,10 @@ ipcMain.handle('file:save', async (_event, filePath: string, content: string) =>
   }
 })
 
-ipcMain.handle('file:save-as', async (_event, content: string) => {
-  const result = await dialog.showSaveDialog(mainWindow!, {
+ipcMain.handle('file:save-as', async (event, content: string) => {
+  const owner = documentWindowForSender(event.sender)
+  if (!owner) return { success: false, error: '文档窗口已关闭' }
+  const result = await dialog.showSaveDialog(owner.window, {
     filters: [
       { name: 'Markdown 文件', extensions: ['md'] },
       { name: '所有文件', extensions: ['*'] }
@@ -356,6 +455,7 @@ ipcMain.handle('file:save-as', async (_event, content: string) => {
   if (!result.canceled && result.filePath) {
     try {
       await writeFile(result.filePath, content, 'utf-8')
+      owner.state.hasDocument = true
       return { success: true, path: result.filePath }
     } catch (err: any) {
       return { success: false, error: err.message }
@@ -364,13 +464,11 @@ ipcMain.handle('file:save-as', async (_event, content: string) => {
   return { success: false, error: '已取消' }
 })
 
-ipcMain.handle('dialog:open-file', async () => {
-  await openFileViaDialog()
-})
-
 // 导出 HTML：直接写文件
-ipcMain.handle('export:html', async (_event, html: string) => {
-  const result = await dialog.showSaveDialog(mainWindow!, {
+ipcMain.handle('export:html', async (event, html: string) => {
+  const owner = documentWindowForSender(event.sender)
+  if (!owner) return { success: false, error: '文档窗口已关闭' }
+  const result = await dialog.showSaveDialog(owner.window, {
     title: '导出 HTML',
     defaultPath: 'document.html',
     filters: [{ name: 'HTML 文件', extensions: ['html'] }]
@@ -389,8 +487,10 @@ ipcMain.handle('export:html', async (_event, html: string) => {
 // 导出 PDF：用独立隐藏窗口加载 HTML 后 printToPDF（避免主窗口深色背景产生黑边）
 type PdfExportOptions = { pageNumbers?: boolean; documentStyle?: 'standard' | 'homework' }
 
-ipcMain.handle('export:pdf', async (_event, html: string, opts: PdfExportOptions = {}) => {
-  const result = await dialog.showSaveDialog(mainWindow!, {
+ipcMain.handle('export:pdf', async (event, html: string, opts: PdfExportOptions = {}) => {
+  const owner = documentWindowForSender(event.sender)
+  if (!owner) return { success: false, error: '文档窗口已关闭' }
+  const result = await dialog.showSaveDialog(owner.window, {
     title: '导出 PDF',
     defaultPath: 'document.pdf',
     filters: [{ name: 'PDF 文件', extensions: ['pdf'] }]
@@ -481,69 +581,50 @@ async function addPageNumbersToPdf(filePath: string, documentStyle?: 'standard' 
 
 ipcMain.handle('app:get-version', () => app.getVersion())
 
-// 文件拖拽到窗口
-ipcMain.on('file:dropped', async (_event, filePath: string) => {
-  if (filePath.endsWith('.md') || filePath.endsWith('.markdown') || filePath.endsWith('.mdown')) {
-    await loadFile(filePath)
-  }
-})
-
-// 从启动参数中提取 Markdown 文件路径（Windows 文件关联 / 命令行打开）
-function findMdFileArg(argv: string[]): string | null {
-  const exts = ['.md', '.markdown', '.mdown', '.mkd']
-  for (const arg of argv) {
-    if (!arg || arg === '.' || arg.startsWith('-')) continue
-    const lower = arg.toLowerCase()
-    if (exts.some((ext) => lower.endsWith(ext))) {
-      return arg
-    }
-  }
-  return null
+function markdownPaths(args: string[], workingDirectory: string) {
+  return args.filter(arg => !arg.startsWith('-') && /\.(?:md|markdown|mdown|mkd)$/i.test(arg))
+    .map(path => resolve(workingDirectory, path))
 }
 
-// 打开文件并聚焦窗口（供单实例复用）
-function openFileInWindow(filePath: string) {
-  loadFile(filePath)
-  if (mainWindow) {
-    if (mainWindow.isMinimized()) mainWindow.restore()
-    mainWindow.focus()
-  }
-}
-
-// 单实例锁：双击 .md 文件时若程序已运行，复用现有窗口打开新文件，而不是启动多个实例
-const gotTheLock = app.requestSingleInstanceLock()
+// 先解析相对路径，再把启动参数传给已经运行的实例。
+const startupFiles = markdownPaths(process.argv.slice(process.defaultApp ? 2 : 1), process.cwd())
+const gotTheLock = app.requestSingleInstanceLock({ files: startupFiles })
 
 if (!gotTheLock) {
   app.quit()
 } else {
-  // 第二个实例启动（程序已在运行时，双击 .md / 命令行再次调用）
-  app.on('second-instance', (_event, argv) => {
-    const filePath = findMdFileArg(argv)
-    if (filePath) {
-      openFileInWindow(filePath)
-    } else if (mainWindow) {
-      if (mainWindow.isMinimized()) mainWindow.restore()
-      mainWindow.focus()
+  app.on('second-instance', (_event, argv, cwd, data) => {
+    const files = (data as { files?: string[] } | undefined)?.files ?? markdownPaths(argv.slice(1), cwd)
+    const window = activeDocumentWindow()
+    if (files.length) {
+      void openFilePaths(files, window)
+    } else {
+      focusWindow(window ?? createWindow())
+    }
+  })
+
+  app.on('open-file', (event, filePath) => {
+    event.preventDefault()
+    if (app.isReady()) {
+      void openFilePaths([filePath], activeDocumentWindow())
+    } else {
+      startupFiles.push(filePath)
     }
   })
 
   app.whenReady().then(() => {
-    createWindow()
+    buildMenu()
+    const window = createWindow()
+    void openFilePaths([...new Set(startupFiles)], window)
 
     app.on('activate', () => {
-      if (BrowserWindow.getAllWindows().length === 0) {
+      if (documentWindows.size === 0) {
         createWindow()
       }
     })
 
     // 自动更新：仅在打包后的正式版本生效（开发模式跳过）
     setupAutoUpdater()
-
-    // 启动参数中带文件（首次通过文件关联 / 命令行打开）
-    const startupFile = findMdFileArg(process.argv)
-    if (startupFile) {
-      setTimeout(() => openFileInWindow(startupFile), 600)
-    }
   })
 }
 
@@ -555,9 +636,10 @@ function setupAutoUpdater() {
   autoUpdater.autoInstallOnAppQuit = true
 
   // 向渲染进程推送更新状态
-  const push = (type: string, data?: any) => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('updater:event', { type, ...data })
+  const push = (event: UpdaterEvent) => {
+    lastUpdaterEvent = event
+    for (const [window, state] of documentWindows) {
+      if (state.ready) window.webContents.send('updater:event', event)
     }
   }
 
@@ -578,24 +660,25 @@ function setupAutoUpdater() {
 
   autoUpdater.on('checking-for-update', () => {
     console.log('[updater] checking for updates...')
-    push('checking')
+    push({ type: 'checking' })
   })
 
   autoUpdater.on('update-available', (info) => {
     console.log('[updater] update available:', info.version)
-    push('available', { version: info.version })
+    push({ type: 'available', version: info.version })
   })
 
   autoUpdater.on('update-not-available', (info) => {
     console.log('[updater] no update:', info.version)
-    push('not-available', { version: info.version })
+    push({ type: 'not-available', version: info.version })
   })
 
   autoUpdater.on('download-progress', (progress) => {
     const percent = Math.round(progress.percent * 10) / 10
     const mb = (bytes: number) => (bytes / 1024 / 1024).toFixed(1)
     console.log(`[updater] downloading ${percent}% (${mb(progress.transferred)}MB / ${mb(progress.total)}MB)`)
-    push('progress', {
+    push({
+      type: 'progress',
       percent,
       transferred: progress.transferred,
       total: progress.total,
@@ -605,13 +688,13 @@ function setupAutoUpdater() {
 
   autoUpdater.on('error', (err) => {
     console.error('[updater] error:', err.message)
-    push('error', { message: err.message })
+    push({ type: 'error', message: err.message })
     scheduleRetry()
   })
 
   autoUpdater.on('update-downloaded', (info) => {
     console.log('[updater] downloaded:', info.version)
-    push('downloaded', { version: info.version })
+    push({ type: 'downloaded', version: info.version })
   })
 
   // 延迟几秒检查，避免拖慢冷启动；失败时进入退避重试
@@ -653,15 +736,6 @@ function retryAttemptReset() {
 ipcMain.handle('updater:install', async () => {
   autoUpdater.quitAndInstall()
   return { success: true }
-})
-
-// Windows: 通过文件关联打开 .md 文件
-app.on('open-file', async (_event, filePath) => {
-  if (app.isReady()) {
-    await loadFile(filePath)
-  } else {
-    app.once('ready', () => loadFile(filePath))
-  }
 })
 
 // 非 macOS 平台关闭所有窗口时退出

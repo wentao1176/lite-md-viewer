@@ -18,7 +18,7 @@ export type UpdaterEvent =
 
 export interface ElectronAPI {
   openFile: () => Promise<void>
-  readFile: (path: string) => Promise<{ success: boolean; content?: string; error?: string }>
+  openDroppedFile: (path: string, content?: string) => Promise<void>
   readImage: (path: string) => Promise<{ success: boolean; dataUrl?: string; error?: string }>
   getPathForFile: (file: File) => string
   insertImages: (request: ImageInsertionRequest) => Promise<ImageInsertionResult>
@@ -31,7 +31,7 @@ export interface ElectronAPI {
   onMenuSave: (callback: () => void) => void
   setDirty: (dirty: boolean) => void
   onSaveBeforeClose: (callback: () => void) => void
-  notifySaveComplete: () => void
+  notifySaveComplete: (saved: boolean) => void
   onMenuExportHtml: (callback: () => void) => void
   onMenuExportPdf: (callback: () => void) => void
   onMenuToggleTheme: (callback: () => void) => void
@@ -45,7 +45,7 @@ export interface ElectronAPI {
 
 const api: ElectronAPI = {
   openFile: () => ipcRenderer.invoke('file:open'),
-  readFile: (path: string) => ipcRenderer.invoke('file:read', path),
+  openDroppedFile: (path, content) => ipcRenderer.invoke('file:dropped', path, content),
   readImage: (path: string) => ipcRenderer.invoke('file:read-image', path),
   getPathForFile: (file: File) => webUtils.getPathForFile(file),
   insertImages: (request: ImageInsertionRequest) => ipcRenderer.invoke('images:insert', request),
@@ -57,6 +57,7 @@ const api: ElectronAPI = {
 
   onFileLoaded: (callback) => {
     ipcRenderer.on('file:loaded', (_event, data) => callback(data))
+    ipcRenderer.send('file:ready')
   },
   onMenuSave: (callback) => {
     ipcRenderer.on('menu:save', () => callback())
@@ -67,8 +68,8 @@ const api: ElectronAPI = {
   onSaveBeforeClose: (callback) => {
     ipcRenderer.on('app:save-before-close', () => callback())
   },
-  notifySaveComplete: () => {
-    ipcRenderer.send('app:save-complete')
+  notifySaveComplete: (saved) => {
+    ipcRenderer.send('app:save-complete', saved)
   },
   onMenuExportHtml: (callback) => {
     ipcRenderer.on('menu:export-html', () => callback())

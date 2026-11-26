@@ -8,7 +8,7 @@ declare module '*.vue' {
 
 interface ElectronAPI {
   openFile: () => Promise<void>
-  readFile: (path: string) => Promise<{ success: boolean; content?: string; error?: string }>
+  openDroppedFile: (path: string, content?: string) => Promise<void>
   readImage: (path: string) => Promise<{ success: boolean; dataUrl?: string; error?: string }>
   getPathForFile: (file: File) => string
   insertImages: (request: import('./shared/image-insertion').ImageInsertionRequest) => Promise<import('./shared/image-insertion').ImageInsertionResult>
@@ -21,7 +21,7 @@ interface ElectronAPI {
   onMenuSave: (callback: () => void) => void
   setDirty: (dirty: boolean) => void
   onSaveBeforeClose: (callback: () => void) => void
-  notifySaveComplete: () => void
+  notifySaveComplete: (saved: boolean) => void
   onMenuExportHtml: (callback: () => void) => void
   onMenuExportPdf: (callback: () => void) => void
   onMenuToggleTheme: (callback: () => void) => void

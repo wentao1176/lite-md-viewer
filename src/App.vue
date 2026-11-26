@@ -670,6 +670,11 @@ watch(isDirty, (dirty) => {
   window.electronAPI?.setDirty?.(dirty)
 })
 
+watch(currentFilePath, (path) => {
+  const name = path.split(/[\\/]/).pop()
+  document.title = name ? `${name} - WTMD` : 'WTMD'
+})
+
 // 工具栏收起状态持久化
 watch(toolbarCollapsed, (collapsed) => {
   localStorage.setItem('wtmd-toolbar-collapsed', collapsed ? '1' : '0')
@@ -790,9 +795,6 @@ onMounted(async () => {
 
   // 监听 Electron IPC
   if (window.electronAPI) {
-    window.electronAPI.onFileLoaded((data) => {
-      loadDocument(data.path, data.content)
-    })
     window.electronAPI.onMenuSave(() => handleSaveFile())
     window.electronAPI.onMenuExportHtml(() => exportDocument('html'))
     window.electronAPI.onMenuExportPdf(() => exportDocument('pdf'))
@@ -800,12 +802,15 @@ onMounted(async () => {
     window.electronAPI.onMenuToggleToc(() => toggleToc())
     // 关闭窗口前询问保存 → 保存成功后通知主进程真正关闭
     window.electronAPI.onSaveBeforeClose(async () => {
-      if (await handleSaveFile()) window.electronAPI.notifySaveComplete()
+      window.electronAPI.notifySaveComplete(await handleSaveFile())
     })
 
     // 更新事件 → 铃铛通知
     window.electronAPI.onUpdaterEvent((event: any) => {
       handleUpdaterEvent(event)
+    })
+    window.electronAPI.onFileLoaded((data) => {
+      loadDocument(data.path, data.content)
     })
 
     // 当前版本号
@@ -814,32 +819,29 @@ onMounted(async () => {
     })
   }
 
-  // 监听拖拽（浏览器环境）
+  // 拖拽 Markdown 文件
   document.addEventListener('dragover', (e) => e.preventDefault())
   document.addEventListener('drop', async (e) => {
     e.preventDefault()
     if (documentBusy.value) return
-    const file = e.dataTransfer?.files?.[0]
-    if (file && /\.(?:md|markdown|mdown|mkd)$/i.test(file.name)) {
-      documentOperationActive.value = true
-      try {
-        if (window.electronAPI) {
-          const path = window.electronAPI.getPathForFile?.(file) || ''
-          if (path) {
-            const result = await window.electronAPI.readFile(path)
-            if (!result.success || result.content === undefined) throw new Error(result.error || '无法读取文件')
-            await loadDocument(path, result.content)
-          } else {
-            await loadDocument('', await file.text())
-          }
-        } else {
-          await loadDocument(file.name, await file.text())
+    const files = Array.from(e.dataTransfer?.files ?? [])
+      .filter(file => /\.(?:md|markdown|mdown|mkd)$/i.test(file.name))
+    if (!files.length) return
+    documentOperationActive.value = true
+    try {
+      if (window.electronAPI) {
+        for (const file of files) {
+          const path = window.electronAPI.getPathForFile(file)
+          await window.electronAPI.openDroppedFile(path, path ? undefined : await file.text())
         }
-      } catch (error) {
-        showToast(`打开失败：${error instanceof Error ? error.message : String(error)}`, true)
-      } finally {
-        documentOperationActive.value = false
+      } else {
+        const [file] = files
+        await loadDocument(file.name, await file.text())
       }
+    } catch (error) {
+      showToast(`打开失败：${error instanceof Error ? error.message : String(error)}`, true)
+    } finally {
+      documentOperationActive.value = false
     }
   })
 
